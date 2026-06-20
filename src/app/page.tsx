@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import Navbar from '@/components/Navbar';
-import { Play, Award, Printer, LayoutGrid, ShieldAlert, CheckCircle2, Tv } from 'lucide-react';
+import { Play, Award, LayoutGrid, ShieldAlert, CheckCircle2, Tv, ChevronLeft } from 'lucide-react';
 
 export const revalidate = 0; // Disable caching to always reflect DB state
 
@@ -34,176 +34,139 @@ export default async function Home() {
   return (
     <>
       <Navbar />
-      <div className="container" style={{ padding: '40px 16px', maxWidth: '1000px' }}>
+      <div className="w-full px-5 py-6 flex flex-col gap-6 select-none pb-24">
         
-        {/* Hero Section */}
-        <div style={{ textAlign: 'center', marginBottom: '48px' }}>
-          <h1 style={{ fontSize: '36px', fontWeight: '800', color: 'var(--text)', marginBottom: '16px', fontFamily: 'Cairo, sans-serif' }}>
-            نظام إدارة وتشغيل لعبة الدمبلة العراقية
+        {/* Hero / Header Section */}
+        <div className="text-center py-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-500/10 text-emerald-400 mb-3 border border-emerald-500/20 shadow-lg shadow-emerald-500/5">
+            <span className="text-3xl">🎯</span>
+          </div>
+          <h1 className="text-2xl font-black text-slate-100 tracking-tight" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            الدمبلة العراقية
           </h1>
-          <p style={{ fontSize: '18px', color: 'var(--text-muted)', maxWidth: '600px', margin: '0 auto 24px', fontFamily: 'Cairo, sans-serif' }}>
-            لوحة تحكم كاملة للتحقق من أرقام السيتات، تشغيل جولات السحب العشوائي، وفحص فوز البطاقات فورياً مع ميزة الطباعة بجودة عالية.
+          <p className="text-xs text-slate-400 mt-2 max-w-[340px] mx-auto leading-relaxed" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            النظام السحابي الذكي لإدارة جولات السحب، طباعة السيتات، والتحقق من الفائزين فورياً.
           </p>
-
-          {activeSession ? (
-            <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px 16px',
-              background: 'var(--primary-light)',
-              color: 'var(--primary)',
-              borderRadius: '20px',
-              fontWeight: '700',
-              fontSize: '14px',
-              fontFamily: 'Cairo, sans-serif'
-            }}>
-              <span className="pulse-dot"></span>
-              هناك جلسة سحب جارية حالياً: {activeSession.name}
-            </div>
-          ) : null}
         </div>
 
-        {/* Database Status Alert */}
-        {setsCount === 0 ? (
-          <div style={{
-            background: '#fff3cd',
-            border: '1px solid #ffeeba',
-            color: '#856404',
-            padding: '20px',
-            borderRadius: 'var(--radius-md)',
-            marginBottom: '32px',
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: '16px',
-            direction: 'rtl'
-          }}>
-            <ShieldAlert size={24} style={{ flexShrink: 0, marginTop: '2px' }} />
-            <div>
-              <h3 style={{ fontWeight: '700', marginBottom: '6px', fontFamily: 'Cairo, sans-serif' }}>قاعدة البيانات فارغة!</h3>
-              <p style={{ fontSize: '14px', lineHeight: '1.6', fontFamily: 'Cairo, sans-serif' }}>
-                لم يتم رفع أي سيتات أو بطاقات دمبلة إلى قاعدة بيانات Supabase حتى الآن.
-                يرجى تسجيل الدخول كمسؤول (Admin) لتعبئة البطاقات يدوياً أو استيرادها من ملف CSV.
-              </p>
-              <div style={{ marginTop: '12px' }}>
-                <Link href="/login" className="btn btn-primary" style={{ padding: '6px 16px', fontSize: '13px', background: '#856404', color: 'white', fontFamily: 'Cairo, sans-serif' }}>
-                  تسجيل الدخول للنظام
-                </Link>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div style={{
-            background: 'var(--primary-light)',
-            border: '1px solid rgba(16, 172, 132, 0.2)',
-            color: 'var(--primary)',
-            padding: '16px',
-            borderRadius: 'var(--radius-md)',
-            marginBottom: '32px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            direction: 'rtl'
-          }}>
-            <CheckCircle2 size={20} />
-            <span style={{ fontWeight: '700', fontSize: '15px', fontFamily: 'Cairo, sans-serif' }}>
-              النظام جاهز للتشغيل. قاعدة البيانات السحابية تحتوي على <strong>{setsCount}</strong> سيت دمبلة ({setsCount * 6} بطاقة).
+        {/* Live Session Alert */}
+        {activeSession && (
+          <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-3 rounded-xl text-xs font-bold animate-pulse justify-center">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-md shadow-emerald-400/50"></span>
+            <span style={{ fontFamily: 'Cairo, sans-serif' }}>
+              جلسة سحب جارية: {activeSession.name}
             </span>
           </div>
         )}
 
-        {/* Dashboard Grid */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: '24px',
-          direction: 'rtl'
-        }}>
+        {/* Database Status */}
+        {setsCount === 0 ? (
+          <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 p-4 rounded-2xl flex flex-col gap-3">
+            <div className="flex gap-2.5">
+              <ShieldAlert size={20} className="flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-extrabold text-sm" style={{ fontFamily: 'Cairo, sans-serif' }}>قاعدة البيانات فارغة!</h3>
+                <p className="text-xs text-slate-300 mt-1 leading-relaxed" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                  لم يتم رفع أي سيتات أو بطاقات حتى الآن. يرجى تسجيل الدخول كمسؤول لاستيرادها من ملف CSV.
+                </p>
+              </div>
+            </div>
+            <Link 
+              href="/login" 
+              className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 text-center font-extrabold text-xs py-2 rounded-xl transition-all"
+              style={{ fontFamily: 'Cairo, sans-serif' }}
+            >
+              تسجيل الدخول للنظام
+            </Link>
+          </div>
+        ) : (
+          <div className="bg-emerald-950/30 border border-emerald-500/20 text-emerald-400 p-3.5 rounded-xl flex items-center gap-2.5">
+            <CheckCircle2 size={18} className="flex-shrink-0" />
+            <span className="font-bold text-xs text-slate-200" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              جاهز للتشغيل. يحتوي النظام على <strong className="text-emerald-400">{setsCount}</strong> سيت ({setsCount * 6} بطاقة).
+            </span>
+          </div>
+        )}
+
+        {/* Action Cards List */}
+        <div className="flex flex-col gap-3">
           
           {/* Card 1: Play */}
-          <Link href="/play" className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Play size={24} />
+          <Link 
+            href="/play" 
+            className="flex items-center gap-4 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 hover:border-slate-600 rounded-2xl p-4 transition-all duration-200 active:scale-[0.98] group"
+          >
+            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 group-hover:scale-105 transition-transform">
+              <Play size={20} className="fill-emerald-400/20" />
             </div>
-            <div>
-              <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '8px', fontFamily: 'Cairo, sans-serif' }}>تشغيل اللعبة والسحب</h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '14px', lineHeight: '1.6', fontFamily: 'Cairo, sans-serif' }}>
-                سحب الأرقام من 1 إلى 90 بدون تكرار في نفس الجلسة، مع إمكانية الإيقاف المؤقت وعرض الأرقام المتبقية والمسحوبة.
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-extrabold text-slate-100" style={{ fontFamily: 'Cairo, sans-serif' }}>تشغيل اللعبة والسحب</h3>
+              <p className="text-[11px] text-slate-400 mt-1 leading-normal" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                إيقاف وتدقيق سحب الأرقام 1-90 عشوائياً أو يدوياً.
               </p>
             </div>
+            <ChevronLeft size={16} className="text-slate-500 group-hover:translate-x-[-2px] transition-transform" />
           </Link>
 
           {/* Card 2: Check Winner */}
-          <Link href="/check" className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--secondary-light)', color: 'var(--secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Award size={24} />
+          <Link 
+            href="/check" 
+            className="flex items-center gap-4 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 hover:border-slate-600 rounded-2xl p-4 transition-all duration-200 active:scale-[0.98] group"
+          >
+            <div className="w-12 h-12 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center border border-cyan-500/20 group-hover:scale-105 transition-transform">
+              <Award size={20} />
             </div>
-            <div>
-              <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '8px', fontFamily: 'Cairo, sans-serif' }}>فحص الفائز والبطاقة</h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '14px', lineHeight: '1.6', fontFamily: 'Cairo, sans-serif' }}>
-                إدخال رقم السيت والبطاقة لعرضها وتلوين الأرقام المسحوبة آلياً، والتحقق من اكتمال الأسطر أو البطاقة كاملة.
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-extrabold text-slate-100" style={{ fontFamily: 'Cairo, sans-serif' }}>فحص الفائز والبطاقة</h3>
+              <p className="text-[11px] text-slate-400 mt-1 leading-normal" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                التحقق الفوري للبطاقة وللأسطر الثلاثة والدمبلة.
               </p>
             </div>
+            <ChevronLeft size={16} className="text-slate-500 group-hover:translate-x-[-2px] transition-transform" />
           </Link>
 
           {/* Card 3: Display TV */}
-          <Link href="/display" className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#e0f2f1', color: '#009688', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Tv size={24} />
+          <Link 
+            href="/display" 
+            className="flex items-center gap-4 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 hover:border-slate-600 rounded-2xl p-4 transition-all duration-200 active:scale-[0.98] group"
+          >
+            <div className="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center border border-amber-500/20 group-hover:scale-105 transition-transform">
+              <Tv size={20} />
             </div>
-            <div>
-              <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '8px', fontFamily: 'Cairo, sans-serif' }}>شاشة عرض التلفزيون</h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '14px', lineHeight: '1.6', fontFamily: 'Cairo, sans-serif' }}>
-                شاشة عرض خالية من الأزرار ومريحة بصرياً لعرض الرقم الأخير والمسحوبات على بروجكتر أو تلفاز شاشة كبيرة.
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-extrabold text-slate-100" style={{ fontFamily: 'Cairo, sans-serif' }}>شاشة عرض التلفزيون</h3>
+              <p className="text-[11px] text-slate-400 mt-1 leading-normal" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                واجهة مريحة وسينمائية لعرض الأرقام المسحوبة للاعبين.
               </p>
             </div>
+            <ChevronLeft size={16} className="text-slate-500 group-hover:translate-x-[-2px] transition-transform" />
           </Link>
 
           {/* Card 4: Manage Sets */}
-          <Link href="/admin" className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#ebf3ff', color: '#3867d6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <LayoutGrid size={24} />
+          <Link 
+            href="/admin" 
+            className="flex items-center gap-4 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 hover:border-slate-600 rounded-2xl p-4 transition-all duration-200 active:scale-[0.98] group"
+          >
+            <div className="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center border border-purple-500/20 group-hover:scale-105 transition-transform">
+              <LayoutGrid size={20} />
             </div>
-            <div>
-              <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '8px', fontFamily: 'Cairo, sans-serif' }}>إدارة السيتات والتعديل</h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '14px', lineHeight: '1.6', fontFamily: 'Cairo, sans-serif' }}>
-                استعراض السيتات الـ 150 والتعديل اليدوي على أرقام الخلايا داخل البطاقات مع تفعيل الفحص التلقائي بعد التعديل.
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-extrabold text-slate-100" style={{ fontFamily: 'Cairo, sans-serif' }}>إدارة السيتات والتعديل</h3>
+              <p className="text-[11px] text-slate-400 mt-1 leading-normal" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                تعديل وتحديث خلايا البطاقات الـ 150 يدوياً.
               </p>
             </div>
+            <ChevronLeft size={16} className="text-slate-500 group-hover:translate-x-[-2px] transition-transform" />
           </Link>
 
         </div>
 
-        {/* Footer/Info section */}
-        <div style={{
-          marginTop: '64px',
-          borderTop: '1px solid var(--border)',
-          paddingTop: '24px',
-          textAlign: 'center',
-          color: 'var(--text-muted)',
-          fontSize: '14px',
-          fontFamily: 'Cairo, sans-serif'
-        }}>
-          لعبة الدمبلة العراقية / Tambola | نظام ويب كامل لإدارة اللعبة
+        {/* Footer Info */}
+        <div className="mt-8 text-center text-[10px] text-slate-500 font-medium" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          نظام الدمبلة العراقية الذكي &copy; {new Date().getFullYear()}
         </div>
 
       </div>
-
-      <style>{`
-        .pulse-dot {
-          width: 8px;
-          height: 8px;
-          background-color: var(--primary);
-          border-radius: 50%;
-          display: inline-block;
-          animation: pulse 1.5s infinite;
-        }
-        @keyframes pulse {
-          0% { transform: scale(0.9); opacity: 1; box-shadow: 0 0 0 0 rgba(16, 172, 132, 0.7); }
-          70% { transform: scale(1); opacity: 0.8; box-shadow: 0 0 0 8px rgba(16, 172, 132, 0); }
-          100% { transform: scale(0.9); opacity: 1; box-shadow: 0 0 0 0 rgba(16, 172, 132, 0); }
-        }
-      `}</style>
     </>
   );
 }

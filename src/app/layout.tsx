@@ -20,8 +20,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl" className={cairo.variable}>
-      <body>
-        <main>{children}</main>
+      <body className="bg-slate-950 text-white min-h-screen overflow-x-hidden selection:bg-emerald-500 selection:text-slate-950">
+        <div className="w-full max-w-[430px] mx-auto min-h-screen bg-slate-900 shadow-2xl relative flex flex-col justify-between overflow-x-hidden border-x border-slate-800 pb-20">
+          <main className="flex-1 w-full">{children}</main>
+        </div>
       </body>
     </html>
   );

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
-import { Play, Pause, RotateCcw, Award, History, Sparkles, Loader2, Plus, X } from 'lucide-react';
+import { Play, Pause, RotateCcw, Award, History, Sparkles, Loader2, Plus, X, ListRestart } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
 interface DrawSession {
@@ -216,7 +216,7 @@ export default function PlayPage() {
   const handleResetSession = async () => {
     if (!session) return;
     const confirmed = window.confirm(
-      'تحذير هام: هل أنت متأكد من مسح جميع الأرقام المسحوبة الحالية وإعادة ضبط الجلسة للبدء من جديد؟ لا يمكن استرجاع الأرقام المحذوفة.'
+      'تحذير هام: هل أنت متأكد من مسح جميع الأرقام المسحوبة الحالية وإعادة ضبط الجلسة للبدء من جديد؟'
     );
     if (!confirmed) return;
 
@@ -295,35 +295,35 @@ export default function PlayPage() {
   return (
     <ProtectedRoute allowedRoles={['admin', 'caller']}>
       <Navbar />
-      <div className="container max-w-[1200px] mx-auto px-4 py-6 md:py-10 pb-24">
+      <div className="w-full px-4 py-5 flex flex-col gap-5 select-none pb-24">
         
         {loading ? (
-          <div className="flex items-center justify-center py-20 gap-3 text-slate-500 font-bold">
-            <Loader2 className="animate-spin text-emerald-500" size={24} />
-            <span style={{ fontFamily: 'Cairo, sans-serif' }}>جاري تحميل بيانات اللعبة...</span>
+          <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400 font-bold">
+            <Loader2 className="animate-spin text-emerald-500" size={28} />
+            <span className="text-xs" style={{ fontFamily: 'Cairo, sans-serif' }}>جاري تحميل بيانات اللعبة...</span>
           </div>
         ) : !session ? (
           /* NO ACTIVE SESSION */
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl max-w-xl mx-auto p-8 md:p-10 animate-[popIn_0.3s_ease-out]">
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Sparkles size={32} />
+          <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6 text-center shadow-xl animate-[popIn_0.3s_ease-out] mt-6">
+            <div className="text-center mb-6">
+              <div className="w-14 h-14 bg-emerald-500/10 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-500/20">
+                <Sparkles size={28} />
               </div>
-              <h2 className="text-2xl font-black text-slate-800 dark:text-white" style={{ fontFamily: 'Cairo, sans-serif' }}>بدء جلسة سحب جديدة</h2>
-              <p className="text-slate-500 dark:text-slate-400 text-sm mt-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              <h2 className="text-lg font-black text-slate-100" style={{ fontFamily: 'Cairo, sans-serif' }}>بدء جلسة سحب جديدة</h2>
+              <p className="text-slate-400 text-xs mt-2 leading-relaxed" style={{ fontFamily: 'Cairo, sans-serif' }}>
                 للبدء بسحب الأرقام ومراقبة الفائزين، يرجى تشغيل الجلسة أولاً.
               </p>
             </div>
 
             {error && (
-              <div className="bg-red-50 text-red-500 dark:bg-red-950/20 dark:text-red-400 p-3 rounded-lg text-sm mb-5 font-bold text-center">
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-xl text-xs mb-5 font-bold">
                 {error}
               </div>
             )}
 
-            <form onSubmit={handleStartSession} className="flex flex-col gap-6">
+            <form onSubmit={handleStartSession} className="flex flex-col gap-5 text-right">
               <div>
-                <label htmlFor="session-name" className="block text-slate-700 dark:text-slate-300 font-bold text-sm mb-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                <label htmlFor="session-name" className="block text-slate-300 font-bold text-xs mb-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
                   اسم الجلسة (اختياري)
                 </label>
                 <input
@@ -332,7 +332,7 @@ export default function PlayPage() {
                   value={newSessionName}
                   onChange={(e) => setNewSessionName(e.target.value)}
                   placeholder="مثال: سحب ديوان الجمعية"
-                  className="input-field w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-900 outline-none focus:border-emerald-500 transition-colors"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-800 bg-slate-950 text-slate-100 outline-none focus:border-emerald-500 transition-colors text-sm"
                   disabled={creating}
                   style={{ fontFamily: 'Cairo, sans-serif' }}
                 />
@@ -340,7 +340,7 @@ export default function PlayPage() {
 
               <button 
                 type="submit" 
-                className="w-full bg-emerald-500 hover:bg-emerald-600 active:translate-y-[1px] text-white font-extrabold py-3.5 px-6 rounded-lg text-base transition-all shadow-lg shadow-emerald-500/20 flex justify-center items-center gap-2" 
+                className="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black py-3 px-6 rounded-xl text-sm transition-all active:scale-[0.98] flex justify-center items-center gap-2 shadow-lg shadow-emerald-500/10 cursor-pointer" 
                 disabled={creating}
                 style={{ fontFamily: 'Cairo, sans-serif' }}
               >
@@ -350,329 +350,319 @@ export default function PlayPage() {
           </div>
         ) : (
           /* PLAY SESSION RUNNING */
-          <div>
+          <div className="flex flex-col gap-4">
             
             {/* Top Control Header Card */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-md p-5 mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
-              <div className="text-center md:text-right">
-                <span className="text-xs text-slate-400 font-bold block" style={{ fontFamily: 'Cairo, sans-serif' }}>جلسة السحب واللعب الحالية</span>
-                <h2 className="text-xl font-extrabold text-slate-800 dark:text-white mt-1" style={{ fontFamily: 'Cairo, sans-serif' }}>{session.name}</h2>
-              </div>
-
-              <div className="flex flex-wrap gap-2 justify-center items-center">
-                <button
-                  onClick={handleCheckAllWinners}
-                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-extrabold border border-blue-200 hover:bg-blue-50 text-blue-500 dark:border-blue-900 dark:hover:bg-blue-950/20 rounded-lg transition-colors"
-                  style={{ fontFamily: 'Cairo, sans-serif' }}
-                >
-                  <Award size={14} /> فحص كل الفائزين
-                </button>
-
-                <div className={`px-3 py-1.5 rounded-full font-bold text-xs ${
-                  session.status === 'active' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400' : 'bg-amber-100 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400'
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col gap-3 shadow-md">
+              <div className="flex justify-between items-start">
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-400 font-bold block" style={{ fontFamily: 'Cairo, sans-serif' }}>جلسة السحب الحالية</span>
+                  <h2 className="text-sm font-black text-slate-100 mt-0.5" style={{ fontFamily: 'Cairo, sans-serif' }}>{session.name}</h2>
+                </div>
+                <div className={`px-2.5 py-1 rounded-full font-bold text-[10px] ${
+                  session.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                 }`} style={{ fontFamily: 'Cairo, sans-serif' }}>
                   {session.status === 'active' ? 'نشط' : 'متوقف مؤقتا'}
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <button
+                  onClick={handleCheckAllWinners}
+                  className="flex items-center justify-center gap-1.5 py-2 px-3 text-[11px] font-extrabold border border-cyan-500/20 hover:border-cyan-500/40 text-cyan-400 bg-cyan-500/5 rounded-xl transition-all cursor-pointer"
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
+                >
+                  <Award size={13} /> فحص الفائزين
+                </button>
 
                 <button 
                   onClick={handleToggleStatus} 
-                  className="flex items-center gap-1 px-4 py-2 text-xs font-bold border border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg transition-colors"
+                  className="flex items-center justify-center gap-1.5 py-2 px-3 text-[11px] font-bold border border-slate-700 hover:bg-slate-800 text-slate-300 rounded-xl transition-all cursor-pointer"
                   style={{ fontFamily: 'Cairo, sans-serif' }}
                 >
-                  {session.status === 'active' ? <Pause size={14} /> : <Play size={14} />}
-                  <span className="mr-1">{session.status === 'active' ? 'إيقاف مؤقت' : 'استئناف'}</span>
+                  {session.status === 'active' ? <Pause size={13} /> : <Play size={13} />}
+                  <span>{session.status === 'active' ? 'إيقاف مؤقت' : 'استئناف'}</span>
                 </button>
 
                 <button 
                   onClick={handleResetSession} 
-                  className="flex items-center gap-1 px-4 py-2 text-xs font-bold border border-red-200 hover:bg-red-50 dark:border-red-900/30 dark:hover:bg-red-950/10 text-red-500 rounded-lg transition-colors"
+                  className="flex items-center justify-center gap-1.5 py-2 px-3 text-[11px] font-bold border border-red-500/20 hover:border-red-500/30 text-red-400 bg-red-500/5 rounded-xl transition-all cursor-pointer"
                   style={{ fontFamily: 'Cairo, sans-serif' }}
                 >
-                  <RotateCcw size={14} /> إعادة الجلسة
+                  <RotateCcw size={13} /> إعادة تصفير الجولة
                 </button>
 
                 <button 
                   onClick={handleFinishSession} 
-                  className="px-4 py-2 text-xs font-bold bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                  className="py-2 px-3 text-[11px] font-bold bg-red-500/20 border border-red-500/30 hover:bg-red-500 hover:text-white text-red-400 rounded-xl transition-all cursor-pointer"
                   style={{ fontFamily: 'Cairo, sans-serif' }}
                 >
-                  إنهاء اللعبة
+                  إنهاء وإغلاق الجلسة
                 </button>
               </div>
             </div>
 
             {error && (
-              <div className="bg-red-50 text-red-500 dark:bg-red-950/20 dark:text-red-400 p-3 rounded-lg text-sm mb-6 font-bold text-center">
+              <div className="bg-red-500/10 border border-red-500/25 text-red-400 p-3 rounded-xl text-xs font-bold text-center">
                 {error}
               </div>
             )}
 
-            {/* Main responsive grid: 1 col on mobile, 3 cols on desktop */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            {/* Main Interactive Sphere & Draw Area */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-center relative overflow-hidden flex flex-col items-center">
               
-              {/* Scoreboard of 1-90 (hidden on mobile, shown on desktop md/lg) */}
-              <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-md p-6 lg:col-span-2 hidden md:block">
-                <h3 className="text-base font-extrabold text-slate-800 dark:text-white mb-5 flex items-center gap-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                  <span>📋</span> لوحة الأرقام المكتملة (1 إلى 90)
-                </h3>
-
-                <div className="grid grid-cols-10 gap-2.5" style={{ direction: 'ltr' }}>
-                  {Array.from({ length: 90 }, (_, i) => i + 1).map((n) => {
-                    const isDrawn = drawnNumbers.includes(n);
-                    const isLatest = latestDraw === n;
-
-                    return (
-                      <button
-                        key={n}
-                        onClick={() => handleNumberClick(n)}
-                        className={`aspect-square rounded-lg flex items-center justify-center text-lg font-black transition-all ${
-                          isLatest 
-                            ? 'bg-amber-400 text-slate-900 border-2 border-slate-800 shadow-[0_0_12px_rgba(251,191,36,0.5)] scale-105' 
-                            : isDrawn 
-                            ? 'bg-emerald-500 text-white cursor-default' 
-                            : 'bg-slate-100 hover:bg-slate-200 text-slate-500 dark:bg-slate-900 dark:hover:bg-slate-950/50'
-                        }`}
-                        disabled={isDrawn}
-                      >
-                        {n}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="flex gap-5 mt-6 text-xs font-semibold justify-center" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-4 h-4 rounded bg-emerald-500"></div>
-                    <span>مسحوبة ({drawnNumbers.length})</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-4 h-4 rounded bg-amber-400"></div>
-                    <span>آخر رقم مسحوب</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-4 h-4 rounded bg-slate-100 dark:bg-slate-900"></div>
-                    <span>متبقية ({90 - drawnNumbers.length})</span>
-                  </div>
-                </div>
+              <span className="text-[11px] font-bold text-slate-400 tracking-wider block" style={{ fontFamily: 'Cairo, sans-serif' }}>الرقم الحالي المسحوب</span>
+              
+              {/* Massive Sphere */}
+              <div className="relative w-40 h-40 rounded-full bg-slate-950 text-slate-100 flex items-center justify-center text-6xl font-black my-5 shadow-2xl border-4 border-slate-800 shadow-emerald-500/5 animate-[popIn_0.3s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards]">
+                {latestDraw ? (
+                  <span className="text-emerald-400 font-mono tracking-tighter">{latestDraw}</span>
+                ) : (
+                  <span className="text-slate-700">-</span>
+                )}
+                {/* Glowing ring */}
+                <div className="absolute inset-0 rounded-full border border-emerald-500/20 animate-ping opacity-30 pointer-events-none"></div>
               </div>
 
-              {/* Side/Mobile Panels: Sphere, Manual Draw Input, history */}
-              <div className="flex flex-col gap-6 lg:col-span-1">
-                
-                {/* Random Draw Sphere (Responsive: larger on mobile) */}
-                <div className="bg-gradient-to-tr from-emerald-600 to-teal-500 text-white rounded-2xl shadow-lg p-6 md:p-8 text-center relative overflow-hidden">
-                  {/* Decorative background glow */}
-                  <div className="absolute inset-0 bg-white/5 opacity-40 blur-3xl rounded-full"></div>
-                  
-                  <span className="text-sm font-extrabold text-white/80 tracking-wider block" style={{ fontFamily: 'Cairo, sans-serif' }}>الرقم الحالي المسحوب</span>
-                  
-                  {/* Sphere size is responsive: huge on mobile */}
-                  <div className="relative w-48 h-48 md:w-40 md:h-40 rounded-full bg-white text-slate-900 flex items-center justify-center text-7xl md:text-6xl font-black mx-auto my-6 shadow-2xl border-4 border-slate-950/10">
-                    {latestDraw ? latestDraw : '-'}
-                  </div>
+              <div className="flex justify-around w-full text-xs text-slate-400 font-semibold mb-4" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                <div>الرقم السابق: <strong className="text-slate-200">{previousDraw || '-'}</strong></div>
+                <div>ترتيب السحب: <strong className="text-slate-200">{drawnNumbers.length} / 90</strong></div>
+              </div>
 
-                  <div className="flex justify-around text-xs text-white/95 font-bold mb-6" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                    <div>الرقم السابق: <strong>{previousDraw || '-'}</strong></div>
-                    <div>ترتيب السحب: <strong>{drawnNumbers.length} / 90</strong></div>
-                  </div>
+              {/* Draw button is big and bold */}
+              <button
+                onClick={handleDrawRandomNumber}
+                disabled={drawing || session.status !== 'active' || drawnNumbers.length >= 90}
+                className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-600 text-slate-950 font-black py-4 px-6 rounded-2xl text-base transition-all active:scale-[0.98] shadow-lg shadow-emerald-500/10 cursor-pointer"
+                style={{ fontFamily: 'Cairo, sans-serif' }}
+              >
+                {drawing ? 'جاري سحب رقم...' : 'سحب رقم عشوائي 🎲'}
+              </button>
+            </div>
 
-                  {/* Draw button is big and bold */}
-                  <button
-                    onClick={handleDrawRandomNumber}
-                    disabled={drawing || session.status !== 'active' || drawnNumbers.length >= 90}
-                    className="w-full bg-white hover:bg-slate-50 disabled:bg-slate-100/20 disabled:text-white/40 text-emerald-600 font-extrabold py-3.5 md:py-3 px-6 rounded-xl text-base md:text-sm transition-all shadow-md active:translate-y-[1px]"
-                    style={{ fontFamily: 'Cairo, sans-serif' }}
-                  >
-                    {drawing ? 'جاري السحب...' : 'سحب رقم عشوائي 🎲'}
-                  </button>
-                </div>
+            {/* Manual Draw Input Form */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col gap-3">
+              <h3 className="text-xs font-bold text-slate-300 flex items-center gap-1.5" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                <Plus size={14} className="text-emerald-400" /> إضافة رقم مسحوب يدوياً:
+              </h3>
 
-                {/* Manual Draw Input Form */}
-                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-md p-5">
-                  <h3 className="text-sm font-extrabold text-slate-800 dark:text-white mb-3 flex items-center gap-1.5" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                    <Plus size={16} /> إضافة رقم مسحوب يدوياً:
-                  </h3>
+              <form onSubmit={handleAddManualNumber} className="flex gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  max="90"
+                  value={manualNumber}
+                  onChange={(e) => setManualNumber(e.target.value)}
+                  placeholder="رقم (1-90)"
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-800 bg-slate-950 text-slate-100 outline-none focus:border-emerald-500 transition-colors"
+                  disabled={addingManual || session.status !== 'active'}
+                  required
+                />
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-black bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-xl transition-all active:scale-95 cursor-pointer flex-shrink-0"
+                  disabled={addingManual || session.status !== 'active'}
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
+                >
+                  {addingManual ? 'جاري...' : 'إضافة'}
+                </button>
+              </form>
+            </div>
 
-                  <form onSubmit={handleAddManualNumber} className="flex gap-2">
-                    <input
-                      type="number"
-                      min="1"
-                      max="90"
-                      value={manualNumber}
-                      onChange={(e) => setManualNumber(e.target.value)}
-                      placeholder="رقم (1-90)"
-                      className="input-field flex-1 px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-900 outline-none focus:border-emerald-500 transition-colors"
-                      disabled={addingManual || session.status !== 'active'}
-                      required
-                    />
+            {/* Click to Draw / 1-90 Compact Grid */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+              <h3 className="text-xs font-bold text-slate-300 mb-3 flex items-center gap-1.5" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                <ListRestart size={14} className="text-emerald-400" /> انقر على الرقم لتحديده مباشرة (بدون كتابة):
+              </h3>
+
+              <div className="grid grid-cols-10 gap-1" style={{ direction: 'ltr' }}>
+                {Array.from({ length: 90 }, (_, i) => i + 1).map((n) => {
+                  const isDrawn = drawnNumbers.includes(n);
+                  const isLatest = latestDraw === n;
+
+                  return (
                     <button
-                      type="submit"
-                      className="px-5 py-2 text-xs font-bold bg-teal-500 hover:bg-teal-600 text-white rounded-lg transition-colors"
-                      disabled={addingManual || session.status !== 'active'}
-                      style={{ fontFamily: 'Cairo, sans-serif' }}
+                      key={n}
+                      onClick={() => handleNumberClick(n)}
+                      className={`aspect-square w-full rounded flex items-center justify-center text-[11px] font-black transition-all cursor-pointer ${
+                        isLatest 
+                          ? 'bg-amber-400 text-slate-950 font-extrabold ring-2 ring-amber-400/50 scale-110 z-10' 
+                          : isDrawn 
+                          ? 'bg-emerald-500 text-slate-950 font-extrabold pointer-events-none' 
+                          : 'bg-slate-950 hover:bg-slate-800 text-slate-400 border border-slate-800/80'
+                      }`}
+                      disabled={isDrawn || session.status !== 'active'}
                     >
-                      {addingManual ? 'جاري...' : 'إضافة'}
+                      {n}
                     </button>
-                  </form>
+                  );
+                })}
+              </div>
+
+              <div className="flex gap-4 mt-3.5 text-[9px] font-bold justify-center text-slate-400" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                <div className="flex items-center gap-1">
+                  <div className="w-2.5 h-2.5 rounded bg-emerald-500"></div>
+                  <span>مسحوب ({drawnNumbers.length})</span>
                 </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-2.5 h-2.5 rounded bg-amber-400"></div>
+                  <span>الأخير</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-2.5 h-2.5 rounded bg-slate-950 border border-slate-800"></div>
+                  <span>متبقي ({90 - drawnNumbers.length})</span>
+                </div>
+              </div>
+            </div>
 
-                {/* Recent Logs (Mobile: displays as inline button pills, Desktop: scrollable list) */}
-                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-md p-5">
-                  <h3 className="text-sm font-extrabold text-slate-800 dark:text-white mb-3 flex items-center gap-1.5" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                    <History size={16} /> تاريخ السحب (تنازلي):
-                  </h3>
+            {/* Recent Logs (Mobile: displays as inline capsules) */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+              <h3 className="text-xs font-bold text-slate-300 mb-3 flex items-center gap-1.5" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                <History size={14} className="text-emerald-400" /> سجل السحب تنازلياً:
+              </h3>
 
-                  {session.numbers.length === 0 ? (
-                    <p className="text-slate-400 text-xs text-center py-4" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                      لا توجد أرقام مسحوبة حالياً
-                    </p>
-                  ) : (
-                    /* Display as small inline capsule buttons, wrapped, perfect for small screens */
-                    <div className="flex flex-wrap gap-2 justify-end" style={{ direction: 'ltr' }}>
-                      {[...session.numbers].reverse().map((n) => (
-                        <div 
-                          key={n.drawOrder} 
-                          className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 dark:bg-slate-900 dark:border-slate-700 rounded-lg text-xs font-bold flex items-center gap-1.5"
-                        >
-                          <span className="text-slate-400 text-[10px]">#{n.drawOrder}</span>
-                          <span className="text-emerald-600 dark:text-emerald-400 font-mono">{n.number}</span>
-                        </div>
-                      ))}
+              {session.numbers.length === 0 ? (
+                <p className="text-slate-500 text-xs text-center py-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                  لا توجد أرقام مسحوبة حالياً
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5 justify-end" style={{ direction: 'ltr' }}>
+                  {[...session.numbers].reverse().map((n) => (
+                    <div 
+                      key={n.drawOrder} 
+                      className="px-2 py-1 bg-slate-950 border border-slate-850 rounded-lg text-[10px] font-black flex items-center gap-1"
+                    >
+                      <span className="text-slate-500 text-[9px]">#{n.drawOrder}</span>
+                      <span className="text-emerald-400 font-mono font-extrabold">{n.number}</span>
                     </div>
-                  )}
+                  ))}
                 </div>
+              )}
+            </div>
 
+          </div>
+        )}
+
+        {/* -------------------- 1. POPUP MODAL: NEW WINNER ALERT -------------------- */}
+        {activeNewWinners.length > 0 && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-[fadeIn_0.2s_ease-out]">
+            <div className="bg-slate-900 border border-emerald-500/50 rounded-3xl shadow-2xl max-w-sm w-full p-5 text-center relative animate-[popIn_0.3s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards]">
+              
+              <button
+                onClick={() => setActiveNewWinners([])}
+                className="absolute top-4 left-4 text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+
+              <div className="w-14 h-14 bg-emerald-500/10 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-emerald-500/20 animate-bounce">
+                <Award size={28} />
+              </div>
+
+              <h2 className="text-lg font-black text-emerald-400 mb-1" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                🏆 يوجد فائز جديد! 🏆
+              </h2>
+              <p className="text-slate-400 text-[10px] mb-4" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                تم اكتمال خطوط اللعب للبطاقات التالية بفعل الرقم الأخير:
+              </p>
+
+              <div className="flex flex-col gap-2 max-h-40 overflow-y-auto mb-5 text-right">
+                {activeNewWinners.map((winner, idx) => (
+                  <div 
+                    key={idx} 
+                    className="p-2.5 bg-slate-950 border border-slate-800/80 rounded-xl flex justify-between items-center"
+                  >
+                    <span className="font-bold text-slate-200 text-xs">
+                      السيت: {formatSetNo(winner.setNo)} | كرت: {formatCardNo(winner.cardNo)}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-lg font-black text-[10px] ${
+                      winner.winType === 'البطاقة كاملة (دمبلة)' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    }`} style={{ fontFamily: 'Cairo, sans-serif' }}>
+                      {winner.winType}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <button 
+                onClick={() => setActiveNewWinners([])} 
+                className="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black py-2.5 px-6 rounded-xl text-xs transition-all cursor-pointer"
+                style={{ fontFamily: 'Cairo, sans-serif' }}
+              >
+                متابعة اللعب 🎲
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* -------------------- 2. POPUP MODAL: ALL WINNERS REPORT -------------------- */}
+        {allWinners !== null && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-[fadeIn_0.2s_ease-out]">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl max-w-sm w-full p-5 max-h-[80vh] overflow-y-auto relative">
+              
+              <button
+                onClick={() => setAllWinners(null)}
+                className="absolute top-4 left-4 text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+
+              <h3 className="text-sm font-black text-slate-100 mb-1 flex items-center gap-1.5" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                <Award className="text-emerald-400" size={16} /> تقرير الفائزين الإجمالي بالجلسة
+              </h3>
+              <p className="text-slate-400 text-[10px] mb-4" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                قائمة بجميع البطاقات الفائزة مقارنة بكامل الأرقام المسحوبة بالجلسة.
+              </p>
+
+              {allWinners.length === 0 ? (
+                <div className="text-center py-6 text-slate-500 text-xs">
+                  <p style={{ fontFamily: 'Cairo, sans-serif' }}>لا يوجد أي بطاقة فائزة في الجلسة حتى الآن.</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {allWinners.map((winner, idx) => (
+                    <div 
+                      key={idx} 
+                      className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex flex-col gap-2 text-right text-xs"
+                    >
+                      <div className="flex justify-between items-center border-b border-slate-800 pb-1.5">
+                        <span className="font-extrabold text-slate-200">
+                          سيت {formatSetNo(winner.setNo)} | كرت {formatCardNo(winner.cardNo)}
+                        </span>
+                        {winner.fullCard && (
+                          <span className="px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-lg text-[9px] font-black" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                            🏆 دمبلة
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="grid grid-cols-3 gap-1 text-[10px] font-bold text-center">
+                        <div className={`p-1 rounded ${winner.row1 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-900 text-slate-600'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
+                          السطر 1: {winner.row1 ? 'فائز' : '✖'}
+                        </div>
+                        <div className={`p-1 rounded ${winner.row2 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-900 text-slate-600'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
+                          السطر 2: {winner.row2 ? 'فائز' : '✖'}
+                        </div>
+                        <div className={`p-1 rounded ${winner.row3 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-900 text-slate-600'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
+                          السطر 3: {winner.row3 ? 'فائز' : '✖'}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-5">
+                <button 
+                  onClick={() => setAllWinners(null)} 
+                  className="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black py-2 rounded-xl text-xs cursor-pointer"
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
+                >
+                  إغلاق التقرير
+                </button>
               </div>
 
             </div>
-
-            {/* -------------------- 1. POPUP MODAL: NEW WINNER ALERT -------------------- */}
-            {activeNewWinners.length > 0 && (
-              <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-[fadeIn_0.2s_ease-out]">
-                <div className="bg-white dark:bg-slate-800 rounded-3xl border-4 border-emerald-500 shadow-2xl max-w-md w-full p-6 text-center relative animate-[popIn_0.3s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards]">
-                  
-                  <button
-                    onClick={() => setActiveNewWinners([])}
-                    className="absolute top-4 left-4 text-slate-400 hover:text-slate-600 transition-colors"
-                  >
-                    <X size={20} />
-                  </button>
-
-                  <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
-                    <Award size={32} />
-                  </div>
-
-                  <h2 className="text-xl md:text-2xl font-black text-emerald-500 mb-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                    🏆 يوجد فائز جديد! 🏆
-                  </h2>
-                  <p className="text-slate-400 text-xs mb-5" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                    تم اكتمال خطوط اللعب للبطاقات التالية بفعل الرقم الأخير:
-                  </p>
-
-                  <div className="flex flex-col gap-2.5 max-h-48 overflow-y-auto mb-6 text-right">
-                    {activeNewWinners.map((winner, idx) => (
-                      <div 
-                        key={idx} 
-                        className="p-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-700/50 rounded-xl flex justify-between items-center"
-                      >
-                        <span className="font-bold text-slate-800 dark:text-white text-xs md:text-sm">
-                          السيت: {formatSetNo(winner.setNo)} | البطاقة: {formatCardNo(winner.cardNo)}
-                        </span>
-                        <span className={`px-2.5 py-1 rounded-full font-bold text-xs ${
-                          winner.winType === 'البطاقة كاملة (دمبلة)' ? 'bg-amber-400 text-slate-900' : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
-                        }`} style={{ fontFamily: 'Cairo, sans-serif' }}>
-                          {winner.winType}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <button 
-                    onClick={() => setActiveNewWinners([])} 
-                    className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold py-3 px-6 rounded-xl transition-all"
-                    style={{ fontFamily: 'Cairo, sans-serif' }}
-                  >
-                    متابعة اللعب 🎲
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* -------------------- 2. POPUP MODAL: ALL WINNERS REPORT -------------------- */}
-            {allWinners !== null && (
-              <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-[fadeIn_0.2s_ease-out]">
-                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full p-6 max-h-[85vh] overflow-y-auto relative">
-                  
-                  <button
-                    onClick={() => setAllWinners(null)}
-                    className="absolute top-4 left-4 text-slate-400 hover:text-slate-600 transition-colors"
-                  >
-                    <X size={20} />
-                  </button>
-
-                  <h3 className="text-lg font-extrabold text-slate-800 dark:text-white mb-1 flex items-center gap-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                    <Award className="text-emerald-500" /> تقرير الفائزين الإجمالي بالجلسة
-                  </h3>
-                  <p className="text-slate-400 text-xs mb-6" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                    قائمة بجميع البطاقات التي حققت فوزاً بخط واحد أو أكثر مقارنة بكامل الأرقام المسحوبة بالجلسة.
-                  </p>
-
-                  {allWinners.length === 0 ? (
-                    <div className="text-center py-10 text-slate-400">
-                      <p style={{ fontFamily: 'Cairo, sans-serif' }}>لا يوجد أي بطاقة فائزة في الجلسة حتى الآن.</p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto border border-slate-100 dark:border-slate-700 rounded-xl">
-                      <table className="w-full border-collapse text-center text-xs md:text-sm">
-                        <thead>
-                          <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700 text-slate-700 dark:text-slate-300">
-                            <th className="p-3 font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>السيت</th>
-                            <th className="p-3 font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>البطاقة</th>
-                            <th className="p-3 font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>الخط الأول</th>
-                            <th className="p-3 font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>الخط الثاني</th>
-                            <th className="p-3 font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>الخط الثالث</th>
-                            <th className="p-3 font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>البطاقة كاملة</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {allWinners.map((winner, idx) => (
-                            <tr key={idx} className="border-b border-slate-100 dark:border-slate-700/60 text-slate-800 dark:text-slate-200">
-                              <td className="p-3 font-extrabold">Set {formatSetNo(winner.setNo)}</td>
-                              <td className="p-3 font-extrabold">Card {formatCardNo(winner.cardNo)}</td>
-                              
-                              <td className={`p-3 font-bold ${winner.row1 ? 'text-emerald-500' : 'text-slate-400 dark:text-slate-500'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
-                                {winner.row1 ? '✅ فائز' : 'غير فائز'}
-                              </td>
-                              <td className={`p-3 font-bold ${winner.row2 ? 'text-emerald-500' : 'text-slate-400 dark:text-slate-500'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
-                                {winner.row2 ? '✅ فائز' : 'غير فائز'}
-                              </td>
-                              <td className={`p-3 font-bold ${winner.row3 ? 'text-emerald-500' : 'text-slate-400 dark:text-slate-500'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
-                                {winner.row3 ? '✅ فائز' : 'غير فائز'}
-                              </td>
-                              <td className={`p-3 font-black ${winner.fullCard ? 'text-amber-500' : 'text-slate-400 dark:text-slate-500'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
-                                {winner.fullCard ? '🏆 دمبلة' : 'غير فائزة'}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  <div className="mt-6 flex justify-end">
-                    <button 
-                      onClick={() => setAllWinners(null)} 
-                      className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-6 rounded-lg text-sm"
-                      style={{ fontFamily: 'Cairo, sans-serif' }}
-                    >
-                      إغلاق التقرير
-                    </button>
-                  </div>
-
-                </div>
-              </div>
-            )}
-
           </div>
         )}
 

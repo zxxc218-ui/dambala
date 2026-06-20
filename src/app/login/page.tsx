@@ -63,29 +63,29 @@ export default function LoginPage() {
   return (
     <>
       <Navbar />
-      <div className="container min-h-[calc(100vh-140px)] flex items-center justify-center max-w-md mx-auto px-4 py-8">
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl w-full p-8 md:p-10">
+      <div className="min-h-[calc(100vh-60px)] flex items-center justify-center w-full px-5 py-8">
+        <div className="bg-slate-900/55 border border-slate-800 rounded-3xl shadow-2xl w-full p-6 md:p-8 backdrop-blur-sm">
           
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 bg-emerald-500/10 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-500/20">
               <ShieldCheck size={32} />
             </div>
-            <h2 className="text-2xl font-black text-slate-800 dark:text-white" style={{ fontFamily: 'Cairo, sans-serif' }}>تسجيل الدخول للعبة</h2>
-            <p className="text-slate-500 dark:text-slate-400 text-sm mt-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            <h2 className="text-xl font-black text-slate-100" style={{ fontFamily: 'Cairo, sans-serif' }}>تسجيل الدخول للعبة</h2>
+            <p className="text-slate-400 text-xs mt-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
               يرجى إدخال اسم المستخدم وكلمة المرور للوصول لصلاحيات اللعبة.
             </p>
           </div>
 
           {error && (
-            <div className="bg-red-50 text-red-500 dark:bg-red-950/20 dark:text-red-400 p-3.5 rounded-lg text-sm mb-5 font-bold flex items-center gap-2 text-right">
-              <AlertTriangle size={18} className="flex-shrink-0" />
+            <div className="bg-red-500/10 border border-red-500/25 text-red-400 p-3 rounded-xl text-xs mb-5 font-bold flex items-center gap-2 text-right">
+              <AlertTriangle size={16} className="flex-shrink-0" />
               <span style={{ fontFamily: 'Cairo, sans-serif' }}>{error}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div>
-              <label htmlFor="username" className="block text-slate-700 dark:text-slate-300 font-bold text-sm mb-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              <label htmlFor="username" className="block text-slate-300 font-bold text-xs mb-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
                 اسم المستخدم
               </label>
               <div className="relative">
@@ -94,17 +94,17 @@ export default function LoginPage() {
                   id="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="admin, caller, checker, viewer"
+                  placeholder="admin, caller, checker..."
                   required
-                  className="w-full pl-4 pr-10 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-900 outline-none focus:border-emerald-500 transition-colors text-sm"
+                  className="w-full pl-4 pr-10 py-3 rounded-xl border border-slate-800 bg-slate-950 text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm"
                   disabled={loading}
                 />
-                <User size={18} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <User size={16} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
               </div>
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-slate-700 dark:text-slate-300 font-bold text-sm mb-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              <label htmlFor="password" className="block text-slate-300 font-bold text-xs mb-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
                 كلمة المرور
               </label>
               <div className="relative">
@@ -115,16 +115,16 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
-                  className="w-full pl-4 pr-10 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-900 outline-none focus:border-emerald-500 transition-colors text-sm"
+                  className="w-full pl-4 pr-10 py-3 rounded-xl border border-slate-800 bg-slate-950 text-slate-100 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm"
                   disabled={loading}
                 />
-                <Lock size={18} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Lock size={16} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
               </div>
             </div>
 
             <button
               type="submit"
-              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold py-3 px-6 rounded-lg text-base transition-colors shadow-lg shadow-emerald-500/20 mt-2"
+              className="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black py-3 px-6 rounded-xl text-sm transition-all active:scale-95 shadow-lg shadow-emerald-500/10 mt-2 cursor-pointer"
               disabled={loading}
               style={{ fontFamily: 'Cairo, sans-serif' }}
             >
@@ -132,10 +132,10 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-8 border-t border-slate-100 dark:border-slate-700 pt-5 text-center text-xs text-slate-400 leading-relaxed" style={{ fontFamily: 'Cairo, sans-serif' }}>
+          <div className="mt-8 border-t border-slate-800/80 pt-5 text-center text-[10px] text-slate-500 leading-relaxed" style={{ fontFamily: 'Cairo, sans-serif' }}>
             الحسابات الافتراضية للتجربة (المستخدم / كلمة المرور):<br/>
-            <strong>admin / admin123</strong> | <strong>caller / caller123</strong><br/>
-            <strong>checker / checker123</strong> | <strong>viewer / viewer123</strong>
+            <strong className="text-slate-400">admin / admin123</strong> | <strong className="text-slate-400">caller / caller123</strong><br/>
+            <strong className="text-slate-400">checker / checker123</strong> | <strong className="text-slate-400">viewer / viewer123</strong>
           </div>
 
         </div>

@@ -168,272 +168,248 @@ export default function CheckWinnerPage() {
   return (
     <ProtectedRoute allowedRoles={['admin', 'checker']}>
       <Navbar />
-      <div className="container" style={{ maxWidth: '1000px', paddingBottom: '80px' }}>
+      <div className="w-full px-4 py-5 flex flex-col gap-5 select-none pb-24">
         
         {/* Title */}
-        <div style={{ marginBottom: '32px' }}>
-          <h1 style={{ fontSize: '28px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Award style={{ color: 'var(--primary)' }} /> فحص البطاقة والتحقق من الفوز
-          </h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '4px' }}>
-            أدخل رقم السيت ورقم البطاقة للتحقق فورياً مما إذا كانت البطاقة فائزة بأحد الخطوط أو فائزة بالدمبلة الكاملة.
+        <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-md">
+          <div className="flex items-center gap-2 text-slate-100">
+            <Award className="text-emerald-400" size={20} />
+            <h1 className="text-sm font-black" style={{ fontFamily: 'Cairo, sans-serif' }}>فحص وتدقيق بطاقة الفائز</h1>
+          </div>
+          <p className="text-[10px] text-slate-400 mt-1" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            أدخل رقم السيت والبطاقة للتحقق من الفوز بخط أو بالدمبلة.
           </p>
         </div>
 
-        {/* Top Session Status */}
-        <div className="card" style={{ padding: '12px 24px', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', background: 'var(--primary-light)', border: 'none', color: 'var(--primary)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '700' }}>
-            <Info size={16} />
-            <span>الجلسة الحالية المقارن معها: <strong>{sessionName}</strong></span>
+        {/* Current Session status */}
+        <div className="bg-emerald-950/30 border border-emerald-500/20 text-emerald-400 p-3.5 rounded-xl flex flex-col gap-1 text-right">
+          <div className="flex items-center gap-1.5 text-xs font-bold">
+            <Info size={14} className="flex-shrink-0" />
+            <span style={{ fontFamily: 'Cairo, sans-serif' }}>جلسة السحب: {sessionName}</span>
           </div>
-          <div style={{ fontSize: '13px', fontWeight: '700' }}>
+          <span className="text-[10px] text-slate-350" style={{ fontFamily: 'Cairo, sans-serif' }}>
             عدد الأرقام المسحوبة بالجلسة: {drawnNumbers.length} رقم
-          </div>
+          </span>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '32px', alignItems: 'start' }}>
-          
-          {/* Left Column: Form search input */}
-          <div className="card">
-            <h3 style={{ fontSize: '16px', fontWeight: '800', marginBottom: '16px' }}>أدخل معلومات البطاقة</h3>
+        {/* Search Inputs Card */}
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-md flex flex-col gap-4">
+          <h3 className="text-xs font-black text-slate-200" style={{ fontFamily: 'Cairo, sans-serif' }}>بيانات بطاقة التدقيق</h3>
 
-            <form onSubmit={handleSearchCard} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label htmlFor="set-number-input" style={{ display: 'block', fontWeight: '700', fontSize: '14px', marginBottom: '8px' }}>
-                  رقم السيت (1 - 150)
-                </label>
-                <input
-                  type="number"
-                  id="set-number-input"
-                  min="1"
-                  max="150"
-                  value={setNo}
-                  onChange={(e) => setSetNo(e.target.value)}
-                  placeholder="مثال: 1"
-                  required
-                  className="input-field"
-                  disabled={searching}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="card-number-input" style={{ display: 'block', fontWeight: '700', fontSize: '14px', marginBottom: '8px' }}>
-                  رقم البطاقة (1 - 6)
-                </label>
-                <input
-                  type="number"
-                  id="card-number-input"
-                  min="1"
-                  max="6"
-                  value={cardNo}
-                  onChange={(e) => setCardNo(e.target.value)}
-                  placeholder="مثال: 3"
-                  required
-                  className="input-field"
-                  disabled={searching}
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="btn btn-primary"
-                style={{ width: '100%', padding: '12px', marginTop: '8px' }}
+          <form onSubmit={handleSearchCard} className="flex flex-col gap-4 text-right">
+            <div>
+              <label htmlFor="set-number-input" className="block text-slate-300 font-bold text-xs mb-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                رقم السيت (1 - 150)
+              </label>
+              <input
+                type="number"
+                id="set-number-input"
+                min="1"
+                max="150"
+                value={setNo}
+                onChange={(e) => setSetNo(e.target.value)}
+                placeholder="مثال: 12"
+                required
+                className="w-full px-4 py-3 rounded-xl border border-slate-800 bg-slate-950 text-slate-100 outline-none focus:border-emerald-500 transition-colors text-sm"
                 disabled={searching}
-              >
-                {searching ? (
-                  <>
-                    <Loader2 className="animate-spin" size={16} /> جاري البحث...
-                  </>
-                ) : (
-                  <>
-                    <Search size={16} /> فحص البطاقة
-                  </>
-                )}
-              </button>
-            </form>
+              />
+            </div>
 
-            {error && (
-              <div style={{
-                background: 'var(--danger-light)',
-                color: 'var(--danger)',
-                padding: '12px',
-                borderRadius: 'var(--radius-sm)',
-                marginTop: '16px',
-                fontSize: '13px',
-                fontWeight: '700',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '6px'
-              }}>
-                <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
-                <span>{error}</span>
-              </div>
-            )}
-          </div>
+            <div>
+              <label htmlFor="card-number-input" className="block text-slate-300 font-bold text-xs mb-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                رقم البطاقة (1 - 6)
+              </label>
+              <input
+                type="number"
+                id="card-number-input"
+                min="1"
+                max="6"
+                value={cardNo}
+                onChange={(e) => setCardNo(e.target.value)}
+                placeholder="مثال: 4"
+                required
+                className="w-full px-4 py-3 rounded-xl border border-slate-800 bg-slate-950 text-slate-100 outline-none focus:border-emerald-500 transition-colors text-sm"
+                disabled={searching}
+              />
+            </div>
 
-          {/* Right Column: Card view and win status details */}
-          <div>
-            {!searched ? (
-              <div className="card" style={{ textAlign: 'center', padding: '80px 20px', borderStyle: 'dashed', background: 'transparent' }}>
-                <Search size={48} style={{ color: 'var(--text-muted)', margin: '0 auto 16px', opacity: 0.5 }} />
-                <h3 style={{ color: 'var(--text-muted)' }}>أدخل البيانات واضغط على زر الفحص لعرض البطاقة والنتائج</h3>
-              </div>
-            ) : cardData && row1Status && row2Status && row3Status && cardStatus ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                
-                {/* 1. Visual Card Grid */}
-                <div className="card" style={{ padding: '24px' }}>
-                  <h3 style={{ fontSize: '16px', fontWeight: '800', marginBottom: '16px' }}>شكل بطاقة الدمبلة</h3>
-                  
-                  <div className="tambola-card" style={{ maxWidth: '100%', padding: '20px' }}>
-                    <div className="tambola-card-header">
-                      <span style={{ fontSize: '16px', fontWeight: '800' }}>
-                        Set {formatSetNo(setNo)} - Card {formatCardNo(cardNo)}
-                      </span>
-                    </div>
+            <button
+              type="submit"
+              className="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black py-3 rounded-xl text-xs transition-all active:scale-[0.98] flex justify-center items-center gap-1.5 shadow-lg shadow-emerald-500/10 cursor-pointer"
+              disabled={searching}
+              style={{ fontFamily: 'Cairo, sans-serif' }}
+            >
+              {searching ? (
+                <>
+                  <Loader2 className="animate-spin" size={14} />
+                  <span>جاري فحص الكرت...</span>
+                </>
+              ) : (
+                <>
+                  <Search size={14} />
+                  <span>فحص البطاقة وتلوينها</span>
+                </>
+              )}
+            </button>
+          </form>
 
-                    <div className="tambola-grid">
-                      {cardData.rows.map((row) => (
-                        <div key={row.rowNo} className="tambola-row">
-                          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((cIdx) => {
-                            const val = row[`c${cIdx}` as keyof CardRow];
-                            const isDrawn = val !== null && drawnNumbers.includes(val);
-
-                            return (
-                              <div
-                                key={cIdx}
-                                className={`tambola-cell ${val === null ? 'empty' : ''} ${isDrawn ? 'drawn' : ''}`}
-                              >
-                                {val !== null ? val : ''}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. Win / Complete report details */}
-                <div className="card">
-                  <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '20px', borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>
-                    تقرير فحص الخطوط والدمبلة
-                  </h3>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    
-                    {/* Line 1 */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)' }}>
-                      <div>
-                        <h4 style={{ fontWeight: '800', fontSize: '15px' }}>الخط الأول (Row 1)</h4>
-                        {!row1Status.isComplete && (
-                          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                            الأرقام الناقصة: <span style={{ direction: 'ltr', display: 'inline-block', fontWeight: '700', color: 'var(--danger)' }}>{row1Status.missingNumbers.join(', ')}</span>
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700' }}>
-                        {row1Status.isComplete ? (
-                          <span style={{ color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <CheckCircle2 size={18} /> فائز ✅
-                          </span>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <XCircle size={18} /> غير فائز
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Line 2 */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)' }}>
-                      <div>
-                        <h4 style={{ fontWeight: '800', fontSize: '15px' }}>الخط الثاني (Row 2)</h4>
-                        {!row2Status.isComplete && (
-                          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                            الأرقام الناقصة: <span style={{ direction: 'ltr', display: 'inline-block', fontWeight: '700', color: 'var(--danger)' }}>{row2Status.missingNumbers.join(', ')}</span>
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700' }}>
-                        {row2Status.isComplete ? (
-                          <span style={{ color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <CheckCircle2 size={18} /> فائز ✅
-                          </span>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <XCircle size={18} /> غير فائز
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Line 3 */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)' }}>
-                      <div>
-                        <h4 style={{ fontWeight: '800', fontSize: '15px' }}>الخط الثالث (Row 3)</h4>
-                        {!row3Status.isComplete && (
-                          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                            الأرقام الناقصة: <span style={{ direction: 'ltr', display: 'inline-block', fontWeight: '700', color: 'var(--danger)' }}>{row3Status.missingNumbers.join(', ')}</span>
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700' }}>
-                        {row3Status.isComplete ? (
-                          <span style={{ color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <CheckCircle2 size={18} /> فائز ✅
-                          </span>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <XCircle size={18} /> غير فائز
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Full Card / Tambola */}
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '16px',
-                      background: cardStatus.isComplete ? 'var(--primary-light)' : '#fff5f5',
-                      border: '1px solid',
-                      borderColor: cardStatus.isComplete ? 'var(--primary)' : 'rgba(238, 82, 83, 0.2)',
-                      borderRadius: 'var(--radius-md)',
-                      marginTop: '8px'
-                    }}>
-                      <div>
-                        <h4 style={{ fontWeight: '800', fontSize: '16px', color: cardStatus.isComplete ? 'var(--primary)' : 'var(--text)' }}>
-                          البطاقة كاملة (دمبلة - Full Card)
-                        </h4>
-                        {!cardStatus.isComplete && (
-                          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                            الأرقام المتبقية للفوز بالدمبلة: <span style={{ direction: 'ltr', display: 'inline-block', fontWeight: '800', color: 'var(--danger)', fontSize: '14px' }}>{cardStatus.missingNumbers.join(', ')}</span>
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '800', fontSize: '16px' }}>
-                        {cardStatus.isComplete ? (
-                          <span style={{ color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                            <CheckCircle2 size={22} /> فائزة 🏆🎉
-                          </span>
-                        ) : (
-                          <span style={{ color: 'var(--danger)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                            <XCircle size={22} /> غير فائزة ❌
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                  </div>
-                </div>
-
-              </div>
-            ) : null}
-          </div>
-
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/25 text-red-400 p-3 rounded-xl text-xs font-bold flex items-start gap-1.5">
+              <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
+              <span style={{ fontFamily: 'Cairo, sans-serif' }}>{error}</span>
+            </div>
+          )}
         </div>
+
+        {/* Results Area */}
+        {!searched ? (
+          <div className="bg-slate-900/30 border border-dashed border-slate-800 rounded-3xl text-center py-14 px-4 flex flex-col items-center gap-3">
+            <Search size={36} className="text-slate-650 opacity-40" />
+            <h3 className="text-xs text-slate-500" style={{ fontFamily: 'Cairo, sans-serif' }}>أدخل البيانات واضغط على زر الفحص للتحقق</h3>
+          </div>
+        ) : cardData && row1Status && row2Status && row3Status && cardStatus ? (
+          <div className="flex flex-col gap-4">
+            
+            {/* Visual Card Grid Card */}
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 shadow-md flex flex-col gap-3">
+              <h3 className="text-xs font-black text-slate-200" style={{ fontFamily: 'Cairo, sans-serif' }}>معاينة البطاقة ملونة</h3>
+              
+              <div className="bg-slate-950 border border-slate-850 p-2.5 rounded-xl flex flex-col gap-1.5">
+                <div className="flex justify-between items-center border-b border-slate-850 pb-1.5 mb-1 text-[10px] font-bold text-slate-400" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                  <span>سيت {formatSetNo(setNo)}</span>
+                  <span>الكرت {formatCardNo(cardNo)}</span>
+                </div>
+
+                {cardData.rows.map((row) => (
+                  <div key={row.rowNo} className="grid grid-cols-9 gap-1" style={{ direction: 'ltr' }}>
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((cIdx) => {
+                      const val = row[`c${cIdx}` as keyof CardRow];
+                      const isDrawn = val !== null && drawnNumbers.includes(val);
+
+                      return (
+                        <div
+                          key={cIdx}
+                          className={`aspect-square w-full rounded flex items-center justify-center text-xs font-black select-none ${
+                            val === null 
+                              ? 'bg-slate-900/40 text-transparent border border-slate-900' 
+                              : isDrawn 
+                              ? 'bg-emerald-500 text-slate-950 border border-emerald-600 font-extrabold shadow-sm' 
+                              : 'bg-slate-800 border border-slate-700 text-slate-400'
+                          }`}
+                        >
+                          {val !== null ? val : ''}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-center gap-4 text-[9px] font-bold text-slate-500 mt-1" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                <div className="flex items-center gap-1">
+                  <div className="w-2.5 h-2.5 rounded bg-emerald-500"></div>
+                  <span>رقم مسحوب</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-2.5 h-2.5 rounded bg-slate-850 border border-slate-700"></div>
+                  <span>رقم متبقي</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Winner Report Cards */}
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 shadow-md flex flex-col gap-3">
+              <h3 className="text-xs font-black text-slate-200 border-b border-slate-850 pb-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                نتائج فحص الخطوط والدمبلة
+              </h3>
+
+              <div className="flex flex-col gap-2">
+                
+                {/* Row 1 Status Card */}
+                <div className="flex flex-col gap-1.5 p-3 bg-slate-950 border border-slate-850 rounded-xl text-right">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-slate-200" style={{ fontFamily: 'Cairo, sans-serif' }}>السطر الأول (Row 1)</span>
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg border ${
+                      row1Status.isComplete 
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                        : 'bg-slate-900 text-slate-500 border-slate-800/80'
+                    }`} style={{ fontFamily: 'Cairo, sans-serif' }}>
+                      {row1Status.isComplete ? 'فائز ✅' : 'غير فائز'}
+                    </span>
+                  </div>
+                  {!row1Status.isComplete && (
+                    <div className="text-[10px] text-slate-450 leading-relaxed" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                      الأرقام الناقصة: <span className="font-bold text-red-400 font-mono tracking-wide">{row1Status.missingNumbers.join(', ')}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Row 2 Status Card */}
+                <div className="flex flex-col gap-1.5 p-3 bg-slate-950 border border-slate-850 rounded-xl text-right">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-slate-200" style={{ fontFamily: 'Cairo, sans-serif' }}>السطر الثاني (Row 2)</span>
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg border ${
+                      row2Status.isComplete 
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                        : 'bg-slate-900 text-slate-500 border-slate-800/80'
+                    }`} style={{ fontFamily: 'Cairo, sans-serif' }}>
+                      {row2Status.isComplete ? 'فائز ✅' : 'غير فائز'}
+                    </span>
+                  </div>
+                  {!row2Status.isComplete && (
+                    <div className="text-[10px] text-slate-450 leading-relaxed" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                      الأرقام الناقصة: <span className="font-bold text-red-400 font-mono tracking-wide">{row2Status.missingNumbers.join(', ')}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Row 3 Status Card */}
+                <div className="flex flex-col gap-1.5 p-3 bg-slate-950 border border-slate-850 rounded-xl text-right">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-slate-200" style={{ fontFamily: 'Cairo, sans-serif' }}>السطر الثالث (Row 3)</span>
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg border ${
+                      row3Status.isComplete 
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                        : 'bg-slate-900 text-slate-500 border-slate-800/80'
+                    }`} style={{ fontFamily: 'Cairo, sans-serif' }}>
+                      {row3Status.isComplete ? 'فائز ✅' : 'غير فائز'}
+                    </span>
+                  </div>
+                  {!row3Status.isComplete && (
+                    <div className="text-[10px] text-slate-450 leading-relaxed" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                      الأرقام الناقصة: <span className="font-bold text-red-400 font-mono tracking-wide">{row3Status.missingNumbers.join(', ')}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Full Card / Tambola Status Card */}
+                <div className={`flex flex-col gap-1.5 p-4 rounded-2xl border text-right mt-1.5 ${
+                  cardStatus.isComplete 
+                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-md' 
+                    : 'bg-red-500/5 text-slate-200 border-red-500/10'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-black" style={{ fontFamily: 'Cairo, sans-serif' }}>البطاقة كاملة (دمبلة - Full Card)</span>
+                    <span className={`text-xs font-black px-3 py-1 rounded-xl border ${
+                      cardStatus.isComplete 
+                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
+                        : 'bg-red-500/10 text-red-400 border-red-500/20'
+                    }`} style={{ fontFamily: 'Cairo, sans-serif' }}>
+                      {cardStatus.isComplete ? 'فائزة 🏆🎉' : 'غير فائزة ❌'}
+                    </span>
+                  </div>
+                  {!cardStatus.isComplete && (
+                    <div className="text-[10px] text-slate-400 leading-relaxed mt-1" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                      الأرقام المتبقية للفوز بالدمبلة: <span className="font-black text-red-400 font-mono text-xs tracking-wider">{cardStatus.missingNumbers.join(', ')}</span>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+        ) : null}
 
       </div>
     </ProtectedRoute>

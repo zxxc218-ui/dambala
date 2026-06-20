@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
-import { LayoutGrid, AlertCircle, Save, Trash2, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { LayoutGrid, AlertCircle, Save, Trash2, Loader2, CheckCircle2, AlertTriangle, ChevronRight, ChevronLeft, Upload } from 'lucide-react';
 import Link from 'next/link';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
@@ -35,7 +35,8 @@ export default function SetsAdminPage() {
   const [dbSets, setDbSets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [selectedSetNo, setSelectedSetNo] = useState<number | null>(null);
+  const [selectedSetNo, setSelectedSetNo] = useState<number>(1);
+  const [activeCardNo, setActiveCardNo] = useState<number>(1);
   const [isSchemaMissing, setIsSchemaMissing] = useState(false);
   
   // Active Set editing details
@@ -54,6 +55,12 @@ export default function SetsAdminPage() {
     fetchSets();
     checkAuth();
   }, []);
+
+  useEffect(() => {
+    if (selectedSetNo) {
+      handleLoadSet(selectedSetNo);
+    }
+  }, [selectedSetNo]);
 
   const checkAuth = async () => {
     try {
@@ -97,8 +104,7 @@ export default function SetsAdminPage() {
     };
   };
 
-  const handleSelectSet = async (setNo: number) => {
-    setSelectedSetNo(setNo);
+  const handleLoadSet = async (setNo: number) => {
     setLoadingDetails(true);
     setSetDetails(null);
     setSetValidationErrors([]);
@@ -185,7 +191,7 @@ export default function SetsAdminPage() {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        updateCardState(cardNo, { successMessage: 'تم حفظ البطاقة بنجاح! 💾' });
+        updateCardState(cardNo, { successMessage: 'تم حفظ الكرت بنجاح! 💾' });
         
         // Refresh sets list in sidebar (to update checkmark status)
         fetchSets();
@@ -261,7 +267,6 @@ export default function SetsAdminPage() {
       const data = await res.json();
       if (data.success) {
         setDbSets([]);
-        setSelectedSetNo(null);
         setSetDetails(null);
         alert(data.message);
       } else {
@@ -292,446 +297,267 @@ export default function SetsAdminPage() {
 
   const getSetStatusSymbol = (setNo: number) => {
     const dbSet = dbSets.find(s => s.setNo === setNo);
-    if (!dbSet) return { text: '⚪ فارغ', color: 'gray' };
-    if (dbSet.isValid) return { text: '✅ سليم', color: 'var(--primary)' };
-    return { text: '⚠️ تحذير', color: 'orange' };
+    if (!dbSet) return { text: 'فارغ', color: 'text-slate-500 bg-slate-900 border-slate-800' };
+    if (dbSet.isValid) return { text: 'سليم ✅', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' };
+    return { text: 'تنبيه ⚠️', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' };
+  };
+
+  const navigateSet = (direction: 'next' | 'prev') => {
+    if (direction === 'next') {
+      setSelectedSetNo(prev => (prev < 150 ? prev + 1 : 1));
+    } else {
+      setSelectedSetNo(prev => (prev > 1 ? prev - 1 : 150));
+    }
   };
 
   const formatSetNo = (no: number) => String(no).padStart(3, '0');
   const formatCardNo = (no: number) => String(no).padStart(2, '0');
 
+  const activeCard = setDetails?.cards.find(c => c.cardNo === activeCardNo);
+
   return (
     <ProtectedRoute allowedRoles={['admin']}>
       <Navbar />
-      <div className="container" style={{ paddingBottom: '80px' }}>
+      <div className="w-full px-4 py-5 flex flex-col gap-5 select-none pb-24">
         
-        {/* Header Actions */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-          <div>
-            <h1 style={{ fontSize: '28px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <LayoutGrid style={{ color: 'var(--primary)' }} /> لوحة الإدخال وإدارة السيتات
-            </h1>
-            <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '4px' }}>
-              اختر رقم سيت من القائمة (1-150) لإدخال أو تعديل أرقام البطاقات يدوياً في كرت دمبلة 3×9.
-            </p>
+        {/* Title Section */}
+        <div className="flex justify-between items-center bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-md">
+          <div className="flex items-center gap-2 text-slate-100">
+            <LayoutGrid className="text-emerald-400" size={20} />
+            <h1 className="text-sm font-black" style={{ fontFamily: 'Cairo, sans-serif' }}>إدارة وتعديل السيتات</h1>
           </div>
-
-          {isAdmin && (
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <Link href="/admin/import" className="btn btn-outline">
-                استيراد من ملف
-              </Link>
-              {dbSets.length > 0 && (
-                <button onClick={handleDeleteAll} className="btn btn-danger" disabled={deletingAll} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Trash2 size={16} /> حذف الكل
-                </button>
-              )}
-            </div>
-          )}
+          <div className="flex gap-2">
+            <Link href="/admin/import" className="flex items-center gap-1 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 font-bold text-[10px] py-1.5 px-3 rounded-lg transition-all">
+              <Upload size={12} />
+              <span>استيراد</span>
+            </Link>
+            {dbSets.length > 0 && (
+              <button 
+                onClick={handleDeleteAll} 
+                disabled={deletingAll}
+                className="flex items-center gap-1 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 font-bold text-[10px] py-1.5 px-3 rounded-lg transition-all cursor-pointer"
+              >
+                <Trash2 size={12} />
+                <span>حذف الكل</span>
+              </button>
+            )}
+          </div>
         </div>
 
+        {/* Database Schema Warning */}
         {isSchemaMissing && (
-          <div style={{
-            background: '#ffebec',
-            color: '#ee5253',
-            border: '2px solid #ee5253',
-            padding: '24px',
-            borderRadius: 'var(--radius-md)',
-            marginBottom: '32px',
-            direction: 'rtl'
-          }}>
-            <h2 style={{ fontSize: '18px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-              <AlertCircle size={24} style={{ flexShrink: 0 }} /> جداول قاعدة البيانات غير موجودة في Supabase!
+          <div className="bg-red-500/10 border border-red-500/25 text-red-400 p-4 rounded-2xl flex flex-col gap-2 text-right">
+            <h2 className="text-sm font-black flex items-center gap-1.5 mb-1" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              <AlertCircle size={18} className="flex-shrink-0" /> جداول قاعدة البيانات غير موجودة!
             </h2>
-            <p style={{ fontSize: '14px', lineHeight: '1.6', marginBottom: '16px' }}>
-              لم نتمكن من العثور على الجداول المطلوبة لتشغيل اللعبة في حساب Supabase الخاص بك. يرجى نسخ كود الـ SQL التالي وتشغيله داخل <strong>SQL Editor</strong> في لوحة تحكم Supabase لتنشيط قاعدة البيانات، ثم قم بتحديث هذه الصفحة.
+            <p className="text-xs text-slate-300 leading-relaxed" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              لم نتمكن من العثور على الجداول المطلوبة في Supabase. يرجى تشغيل كود الـ SQL التالي في SQL Editor بلوحة Supabase لتنشيط قاعدة البيانات.
             </p>
-            <div style={{ position: 'relative' }}>
-              <pre style={{
-                background: '#2f3542',
-                color: '#f1f2f6',
-                padding: '16px',
-                borderRadius: '8px',
-                fontSize: '13px',
-                overflowX: 'auto',
-                direction: 'ltr',
-                textAlign: 'left',
-                fontFamily: 'Consolas, Monaco, monospace',
-                maxHeight: '300px'
-              }}>
-{`-- 1. جدول السيتات (sets)
-create table sets (
-  id uuid default gen_random_uuid() primary key,
-  set_no integer unique not null,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
-
--- 2. جدول البطاقات (cards)
-create table cards (
-  id uuid default gen_random_uuid() primary key,
-  set_id uuid references sets(id) on delete cascade not null,
-  card_no integer not null,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  unique(set_id, card_no)
-);
-
--- 3. جدول أسطر البطاقة (card_rows)
-create table card_rows (
-  id uuid default gen_random_uuid() primary key,
-  card_id uuid references cards(id) on delete cascade not null,
-  row_no integer not null,
-  c1 integer, c2 integer, c3 integer, c4 integer, c5 integer, c6 integer, c7 integer, c8 integer, c9 integer,
-  unique(card_id, row_no)
-);
-
--- 4. جدول جلسات اللعب (draw_sessions)
-create table draw_sessions (
-  id uuid default gen_random_uuid() primary key,
-  name text not null,
-  started_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  ended_at timestamp with time zone,
-  status text not null
-);
-
--- 5. جدول الأرقام المسحوبة (draw_numbers)
-create table draw_numbers (
-  id uuid default gen_random_uuid() primary key,
-  session_id uuid references draw_sessions(id) on delete cascade not null,
-  number integer not null,
-  draw_order integer not null,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  unique(session_id, number)
-);`}
-              </pre>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(`-- 1. جدول السيتات (sets)
-create table sets (
-  id uuid default gen_random_uuid() primary key,
-  set_no integer unique not null,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
-
--- 2. جدول البطاقات (cards)
-create table cards (
-  id uuid default gen_random_uuid() primary key,
-  set_id uuid references sets(id) on delete cascade not null,
-  card_no integer not null,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  unique(set_id, card_no)
-);
-
--- 3. جدول أسطر البطاقة (card_rows)
-create table card_rows (
-  id uuid default gen_random_uuid() primary key,
-  card_id uuid references cards(id) on delete cascade not null,
-  row_no integer not null,
-  c1 integer, c2 integer, c3 integer, c4 integer, c5 integer, c6 integer, c7 integer, c8 integer, c9 integer,
-  unique(card_id, row_no)
-);
-
--- 4. جدول جلسات اللعب (draw_sessions)
-create table draw_sessions (
-  id uuid default gen_random_uuid() primary key,
-  name text not null,
-  started_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  ended_at timestamp with time zone,
-  status text not null
-);
-
--- 5. جدول الأرقام المسحوبة (draw_numbers)
-create table draw_numbers (
-  id uuid default gen_random_uuid() primary key,
-  session_id uuid references draw_sessions(id) on delete cascade not null,
-  number integer not null,
-  draw_order integer not null,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  unique(session_id, number)
-);`);
-                  alert('تم نسخ كود SQL إلى الحافظة! 📋');
-                }}
-                className="btn btn-outline"
-                style={{
-                  position: 'absolute',
-                  top: '10px',
-                  left: '10px',
-                  background: 'rgba(255,255,255,0.1)',
-                  color: 'white',
-                  borderColor: 'rgba(255,255,255,0.2)',
-                  padding: '6px 12px',
-                  fontSize: '12px'
-                }}
-              >
-                نسخ الكود
-              </button>
-            </div>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(`create table sets (id uuid default gen_random_uuid() primary key, set_no integer unique not null, created_at timestamp with time zone default timezone('utc'::text, now()) not null); create table cards (id uuid default gen_random_uuid() primary key, set_id uuid references sets(id) on delete cascade not null, card_no integer not null, created_at timestamp with time zone default timezone('utc'::text, now()) not null, unique(set_id, card_no)); create table card_rows (id uuid default gen_random_uuid() primary key, card_id uuid references cards(id) on delete cascade not null, row_no integer not null, c1 integer, c2 integer, c3 integer, c4 integer, c5 integer, c6 integer, c7 integer, c8 integer, c9 integer, unique(card_id, row_no)); create table draw_sessions (id uuid default gen_random_uuid() primary key, name text not null, started_at timestamp with time zone default timezone('utc'::text, now()) not null, ended_at timestamp with time zone, status text not null); create table draw_numbers (id uuid default gen_random_uuid() primary key, session_id uuid references draw_sessions(id) on delete cascade not null, number integer not null, draw_order integer not null, created_at timestamp with time zone default timezone('utc'::text, now()) not null, unique(session_id, number));`);
+                alert('تم نسخ الكود! 📋');
+              }}
+              className="mt-2 bg-slate-950 border border-slate-800 text-slate-300 py-1.5 rounded-lg text-xs font-bold transition-all"
+              style={{ fontFamily: 'Cairo, sans-serif' }}
+            >
+              نسخ كود SQL
+            </button>
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '32px', alignItems: 'start' }}>
+        {/* Set Selector Controls */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col gap-3 shadow-md items-center">
+          <span className="text-[11px] font-bold text-slate-400" style={{ fontFamily: 'Cairo, sans-serif' }}>اختر رقم السيت (1 - 150)</span>
           
-          {/* Left Column: Complete list 1 to 150 */}
-          <div>
-            <h3 style={{ fontSize: '16px', fontWeight: '800', marginBottom: '16px', color: 'var(--text-muted)' }}>
-              قائمة السيتات (1 إلى 150)
-            </h3>
-            
-            {loading ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-muted)', padding: '20px 0' }}>
-                <Loader2 className="animate-spin" size={16} />
-                <span>جاري تحميل الحالات...</span>
-              </div>
-            ) : (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
-                gap: '8px',
-                maxHeight: 'calc(100vh - 240px)',
-                overflowY: 'auto',
-                padding: '8px',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--card-bg)'
-              }}>
-                {Array.from({ length: 150 }, (_, i) => i + 1).map((no) => {
-                  const status = getSetStatusSymbol(no);
-                  const isSelected = selectedSetNo === no;
+          <div className="flex items-center gap-3 w-full justify-center">
+            <button 
+              onClick={() => navigateSet('prev')} 
+              className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 hover:text-emerald-400 active:scale-90 transition-all cursor-pointer"
+            >
+              <ChevronRight size={18} />
+            </button>
 
-                  return (
-                    <button
-                      key={no}
-                      onClick={() => handleSelectSet(no)}
-                      style={{
-                        padding: '10px 4px',
-                        borderRadius: 'var(--radius-sm)',
-                        border: '1px solid',
-                        borderColor: isSelected ? 'var(--primary)' : 'var(--border)',
-                        background: isSelected ? 'var(--primary-light)' : 'transparent',
-                        cursor: 'pointer',
-                        textAlign: 'center',
-                        transition: 'all 0.15s',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: '4px'
-                      }}
-                    >
-                      <span style={{ fontWeight: '800', fontSize: '13px', color: isSelected ? 'var(--primary)' : 'var(--text)' }}>
-                        سيت {formatSetNo(no)}
-                      </span>
-                      <span style={{ fontSize: '11px', fontWeight: '700', color: status.color }}>
-                        {status.text}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+            <div className="relative">
+              <input
+                type="number"
+                min="1"
+                max="150"
+                value={selectedSetNo}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  if (!isNaN(val) && val >= 1 && val <= 150) {
+                    setSelectedSetNo(val);
+                  }
+                }}
+                className="w-24 text-center py-2 text-base font-black bg-slate-950 border border-slate-800 text-slate-100 rounded-xl outline-none focus:border-emerald-500 font-mono"
+              />
+            </div>
+
+            <button 
+              onClick={() => navigateSet('next')} 
+              className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 hover:text-emerald-400 active:scale-90 transition-all cursor-pointer"
+            >
+              <ChevronLeft size={18} />
+            </button>
           </div>
 
-          {/* Right Column: Cards Editor Area */}
-          <div>
-            {!selectedSetNo ? (
-              <div className="card" style={{ textAlign: 'center', padding: '100px 20px', borderStyle: 'dashed', background: 'transparent' }}>
-                <LayoutGrid size={56} style={{ color: 'var(--text-muted)', margin: '0 auto 16px', opacity: 0.4 }} />
-                <h3 style={{ color: 'var(--text-muted)' }}>يرجى اختيار رقم السيت من القائمة الجانبية لإدخال وتعديل الأرقام يدوياً</h3>
-              </div>
-            ) : loadingDetails ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '120px 0', gap: '8px' }}>
-                <Loader2 className="animate-spin" size={24} />
-                <span>جاري تحميل بطاقات السيت {formatSetNo(selectedSetNo)}...</span>
-              </div>
-            ) : setDetails ? (
-              <div>
-                
-                {/* Selected Set Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
-                  <div>
-                    <h2 style={{ fontSize: '24px', fontWeight: '800' }}>
-                      تعديل وتعبئة السيت رقم {formatSetNo(selectedSetNo)}
-                    </h2>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: '2px' }}>
-                      أدخل الأرقام في أعمدتها الصحيحة (كل سطر 5 أرقام بالضبط، إجمالي 15 رقم في الكارت).
-                    </p>
-                  </div>
+          {/* Active Set Status badge */}
+          <div className={`px-3 py-1 rounded-full border text-[10px] font-black ${getSetStatusSymbol(selectedSetNo).color}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
+            حالة السيت: {getSetStatusSymbol(selectedSetNo).text}
+          </div>
+        </div>
 
-                  {isAdmin && (
-                    <button
-                      onClick={handleSaveFullSet}
-                      disabled={savingSet}
-                      className="btn btn-primary"
-                      style={{ padding: '12px 24px', fontSize: '16px', background: '#3498db' }}
-                    >
-                      {savingSet ? (
-                        <>
-                          <Loader2 className="animate-spin" size={16} /> جاري حفظ السيت...
-                        </>
-                      ) : (
-                        <>
-                          <Save size={16} /> حفظ السيت بالكامل (6 بطاقات)
-                        </>
-                      )}
-                    </button>
-                  )}
+        {/* Editor Area */}
+        {loadingDetails ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-500 font-bold">
+            <Loader2 className="animate-spin text-emerald-500" size={24} />
+            <span className="text-xs" style={{ fontFamily: 'Cairo, sans-serif' }}>جاري تحميل أرقام السيت {formatSetNo(selectedSetNo)}...</span>
+          </div>
+        ) : setDetails ? (
+          <div className="flex flex-col gap-4">
+            
+            {/* Card selector horizontal tabs */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-2 flex justify-between gap-1 shadow-md">
+              {[1, 2, 3, 4, 5, 6].map((num) => (
+                <button
+                  key={num}
+                  onClick={() => {
+                    setActiveCardNo(num);
+                    setSetValidationErrors([]);
+                    setSetValidationSuccess('');
+                  }}
+                  className={`flex-1 text-center py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                    activeCardNo === num
+                      ? 'bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/10'
+                      : 'text-slate-400 bg-slate-950/40 border border-slate-950/20 hover:text-slate-200'
+                  }`}
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
+                >
+                  كرت {num}
+                </button>
+              ))}
+            </div>
+
+            {/* Set Validation Alerts */}
+            {setValidationSuccess && (
+              <div className="bg-emerald-950/30 border border-emerald-500/20 text-emerald-400 p-3 rounded-xl text-xs font-bold flex items-center gap-2 justify-center">
+                <CheckCircle2 size={16} className="flex-shrink-0" />
+                <span style={{ fontFamily: 'Cairo, sans-serif' }}>{setValidationSuccess}</span>
+              </div>
+            )}
+
+            {setValidationErrors.length > 0 && (
+              <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 p-3.5 rounded-xl text-right">
+                <h4 className="font-extrabold flex items-center gap-1.5 mb-1.5 text-xs" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                  <AlertTriangle size={16} className="flex-shrink-0" /> تنبيهات تدقيق السيت:
+                </h4>
+                <ul className="list-disc pr-4 text-[10px] text-slate-300 leading-normal flex flex-col gap-1">
+                  {setValidationErrors.map((err, idx) => (
+                    <li key={idx} style={{ fontFamily: 'Cairo, sans-serif' }}>{err}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Selected Card Form Details */}
+            {activeCard && (
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 flex flex-col gap-4 shadow-xl">
+                
+                {/* Active Card Label */}
+                <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                  <span className="text-xs font-black text-slate-200">
+                    السيت {formatSetNo(selectedSetNo)} - البطاقة {formatCardNo(activeCardNo)}
+                  </span>
+                  
+                  <button
+                    onClick={() => handleSaveCard(activeCardNo)}
+                    className="flex items-center gap-1 py-1.5 px-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-xl text-[10px] font-black cursor-pointer transition-all active:scale-95"
+                    style={{ fontFamily: 'Cairo, sans-serif' }}
+                  >
+                    <Save size={12} />
+                    <span>حفظ هذا الكرت</span>
+                  </button>
                 </div>
 
-                {/* Set-Level Alerts */}
-                {setValidationSuccess && (
-                  <div style={{
-                    background: 'var(--primary-light)',
-                    color: 'var(--primary)',
-                    padding: '16px',
-                    borderRadius: 'var(--radius-md)',
-                    fontWeight: '700',
-                    fontSize: '14px',
-                    marginBottom: '24px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px'
-                  }}>
-                    <CheckCircle2 size={20} />
-                    <span>{setValidationSuccess}</span>
+                {/* Card Messages */}
+                {activeCard.successMessage && (
+                  <div className="bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 py-2 px-3 rounded-lg text-xs font-bold text-center">
+                    {activeCard.successMessage}
                   </div>
                 )}
 
-                {setValidationErrors.length > 0 && (
-                  <div style={{
-                    background: '#fff3cd',
-                    color: '#856404',
-                    border: '1px solid #ffeeba',
-                    padding: '20px',
-                    borderRadius: 'var(--radius-md)',
-                    marginBottom: '28px'
-                  }}>
-                    <h4 style={{ fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontSize: '15px' }}>
-                      <AlertTriangle size={20} /> تنبيهات تدقيق السيت (يرجى مراجعتها):
-                    </h4>
-                    <ul style={{ paddingRight: '20px', fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '4px', lineHeight: '1.6' }}>
-                      {setValidationErrors.map((err, idx) => (
+                {activeCard.validationErrors && (
+                  <div className="bg-red-500/10 border border-red-500/25 text-red-400 p-3 rounded-lg text-xs">
+                    <ul className="list-disc pr-4 text-[10px] text-red-300 leading-normal flex flex-col gap-0.5">
+                      {activeCard.validationErrors.map((err, idx) => (
                         <li key={idx}>{err}</li>
                       ))}
                     </ul>
                   </div>
                 )}
 
-                {/* Cards Form Grid */}
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))',
-                  gap: '24px',
-                  marginBottom: '32px'
-                }}>
-                  {setDetails.cards.map((card) => (
-                    <div key={card.cardNo} className="tambola-card" style={{ padding: '16px 12px 14px' }}>
-                      
-                      {/* Card Header & Save Button */}
-                      <div className="tambola-card-header">
-                        <span style={{ fontSize: '15px', fontWeight: '800' }}>
-                          Set {formatSetNo(selectedSetNo)} - Card {formatCardNo(card.cardNo)}
-                        </span>
+                {/* 3x9 Grid Inputs */}
+                <div className="bg-slate-950 border border-slate-850 p-2.5 rounded-xl flex flex-col gap-1.5">
+                  {activeCard.rows.map((row) => (
+                    <div key={row.rowNo} className="grid grid-cols-9 gap-1.5" style={{ direction: 'ltr' }}>
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((cIdx) => {
+                        const colKey = `c${cIdx}` as keyof CardRow;
+                        const val = row[colKey];
 
-                        {isAdmin && (
-                          <button
-                            onClick={() => handleSaveCard(card.cardNo)}
-                            className="btn btn-outline"
-                            style={{
-                              padding: '4px 10px',
-                              fontSize: '12px',
-                              borderColor: 'var(--primary)',
-                              color: 'var(--primary)',
-                              fontWeight: '700'
-                            }}
-                          >
-                            <Save size={12} /> حفظ البطاقة
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Card Specific Messages */}
-                      {card.successMessage && (
-                        <div style={{ background: 'var(--primary-light)', color: 'var(--primary)', padding: '6px 12px', borderRadius: '4px', fontSize: '12px', fontWeight: '700', marginBottom: '10px', textAlign: 'center' }}>
-                          {card.successMessage}
-                        </div>
-                      )}
-
-                      {card.validationErrors && (
-                        <div style={{ background: 'var(--danger-light)', color: 'var(--danger)', padding: '8px 12px', borderRadius: '4px', fontSize: '12px', fontWeight: '700', marginBottom: '10px' }}>
-                          <ul style={{ paddingRight: '12px', listStyleType: 'disc' }}>
-                            {card.validationErrors.map((err, idx) => (
-                              <li key={idx}>{err}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {/* 3x9 Grid Inputs */}
-                      <div className="tambola-grid">
-                        {card.rows.map((row) => (
-                          <div key={row.rowNo} className="tambola-row">
-                            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((cIdx) => {
-                              const colKey = `c${cIdx}` as keyof CardRow;
-                              const val = row[colKey];
-
-                              return (
-                                <div key={cIdx} className={`tambola-cell ${val === null ? 'empty' : ''}`} style={{ padding: '2px' }}>
-                                  <input
-                                    type="text"
-                                    value={val === null ? '' : String(val)}
-                                    onChange={(e) => handleCellChange(card.cardNo, row.rowNo, colKey, e.target.value)}
-                                    placeholder=""
-                                    style={{
-                                      width: '100%',
-                                      height: '100%',
-                                      border: '1px solid #ced6e0',
-                                      borderRadius: '2px',
-                                      textAlign: 'center',
-                                      fontWeight: '800',
-                                      fontSize: '15px',
-                                      fontFamily: 'inherit',
-                                      outline: 'none',
-                                      background: val === null ? '#f1f2f6' : 'white',
-                                      transition: 'background-color 0.2s'
-                                    }}
-                                    disabled={!isAdmin}
-                                  />
-                                </div>
-                              );
-                            })}
+                        return (
+                          <div key={cIdx} className="aspect-square w-full">
+                            <input
+                              type="text"
+                              value={val === null ? '' : String(val)}
+                              onChange={(e) => handleCellChange(activeCardNo, row.rowNo, colKey, e.target.value)}
+                              placeholder=""
+                              className={`w-full h-full text-center font-black text-base outline-none rounded transition-colors ${
+                                val === null 
+                                  ? 'bg-slate-900 border border-slate-850 text-slate-600 focus:border-emerald-500/50' 
+                                  : 'bg-slate-800 border border-slate-700 text-slate-100 focus:border-emerald-500'
+                              }`}
+                              disabled={!isAdmin}
+                            />
                           </div>
-                        ))}
-                      </div>
-
+                        );
+                      })}
                     </div>
                   ))}
                 </div>
 
-                {/* Big Bottom Save Set Button */}
-                {isAdmin && (
-                  <div style={{ display: 'flex', justifyContent: 'center', borderTop: '1px solid var(--border)', paddingTop: '24px' }}>
-                    <button
-                      onClick={handleSaveFullSet}
-                      disabled={savingSet}
-                      className="btn btn-primary"
-                      style={{ padding: '16px 40px', fontSize: '18px', background: '#3498db', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
-                    >
-                      {savingSet ? (
-                        <>
-                          <Loader2 className="animate-spin" size={20} /> جاري حفظ السيت...
-                        </>
-                      ) : (
-                        <>
-                          <Save size={20} /> حفظ السيت بالكامل (6 بطاقات)
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
+                {/* Info Text */}
+                <span className="text-[9px] text-slate-500 text-center leading-normal" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                  الأعمدة مرتبة من اليسار لليمين حسب العشرات: (1-9)، (10-19)، (20-29)، إلخ.
+                </span>
 
               </div>
-            ) : null}
-          </div>
+            )}
 
-        </div>
+            {/* Full Set Actions */}
+            <div className="flex flex-col gap-2 mt-2">
+              <button
+                onClick={handleSaveFullSet}
+                disabled={savingSet}
+                className="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black py-3.5 px-6 rounded-2xl text-sm transition-all active:scale-[0.98] flex justify-center items-center gap-2 shadow-lg shadow-emerald-500/10 cursor-pointer"
+                style={{ fontFamily: 'Cairo, sans-serif' }}
+              >
+                {savingSet ? (
+                  <>
+                    <Loader2 className="animate-spin" size={16} />
+                    <span>جاري حفظ السيت...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save size={16} />
+                    <span>حفظ السيت بالكامل (6 بطاقات)</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+          </div>
+        ) : null}
 
       </div>
     </ProtectedRoute>
