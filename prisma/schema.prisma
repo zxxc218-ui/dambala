@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Set {
+  id        String   @id @default(uuid())
+  setNo     Int      @unique
+  createdAt DateTime @default(now())
+  cards     Card[]
+
+  @@map("sets")
+}
+
+model Card {
+  id        String    @id @default(uuid())
+  setId     String
+  set       Set       @relation(fields: [setId], references: [id], onDelete: Cascade)
+  cardNo    Int
+  createdAt DateTime  @default(now())
+  rows      CardRow[]
+
+  @@unique([setId, cardNo])
+  @@map("cards")
+}
+
+model CardRow {
+  id        String   @id @default(uuid())
+  cardId    String
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  rowNo     Int
+  c1        Int?
+  c2        Int?
+  c3        Int?
+  c4        Int?
+  c5        Int?
+  c6        Int?
+  c7        Int?
+  c8        Int?
+  c9        Int?
+
+  @@unique([cardId, rowNo])
+  @@map("card_rows")
+}
+
+model DrawSession {
+  id        String       @id @default(uuid())
+  name      String
+  startedAt DateTime     @default(now())
+  endedAt   DateTime?
+  status    String       // "active", "paused", "finished"
+  numbers   DrawNumber[]
+
+  @@map("draw_sessions")
+}
+
+model DrawNumber {
+  id        String      @id @default(uuid())
+  sessionId String
+  session   DrawSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  number    Int
+  drawOrder Int
+  createdAt DateTime    @default(now())
+
+  @@unique([sessionId, number])
+  @@map("draw_numbers")
+}
