@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
-import { Play, Pause, RotateCcw, Award, CheckCircle2, History, AlertTriangle, Sparkles, Loader2, Plus, X } from 'lucide-react';
+import { Play, Pause, RotateCcw, Award, History, Sparkles, Loader2, Plus, X } from 'lucide-react';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 interface DrawSession {
   id: string;
@@ -292,47 +293,37 @@ export default function PlayPage() {
   const formatCardNo = (no: number) => String(no).padStart(2, '0');
 
   return (
-    <>
+    <ProtectedRoute allowedRoles={['admin', 'caller']}>
       <Navbar />
-      <div className="container" style={{ maxWidth: '1100px', paddingBottom: '80px' }}>
+      <div className="container max-w-[1200px] mx-auto px-4 py-6 md:py-10 pb-24">
         
         {loading ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '100px 0', gap: '8px' }}>
-            <Loader2 className="animate-spin" size={24} />
-            <span>جاري تحميل بيانات اللعبة...</span>
+          <div className="flex items-center justify-center py-20 gap-3 text-slate-500 font-bold">
+            <Loader2 className="animate-spin text-emerald-500" size={24} />
+            <span style={{ fontFamily: 'Cairo, sans-serif' }}>جاري تحميل بيانات اللعبة...</span>
           </div>
         ) : !session ? (
           /* NO ACTIVE SESSION */
-          <div className="card" style={{ maxWidth: '600px', margin: '40px auto', padding: '40px 32px' }}>
-            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-              <div style={{
-                width: '64px',
-                height: '64px',
-                borderRadius: '50%',
-                background: 'var(--primary-light)',
-                color: 'var(--primary)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 16px'
-              }}>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl max-w-xl mx-auto p-8 md:p-10 animate-[popIn_0.3s_ease-out]">
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Sparkles size={32} />
               </div>
-              <h2 style={{ fontSize: '24px', fontWeight: '800' }}>بدء جلسة سحب جديدة</h2>
-              <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '6px' }}>
+              <h2 className="text-2xl font-black text-slate-800 dark:text-white" style={{ fontFamily: 'Cairo, sans-serif' }}>بدء جلسة سحب جديدة</h2>
+              <p className="text-slate-500 dark:text-slate-400 text-sm mt-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
                 للبدء بسحب الأرقام ومراقبة الفائزين، يرجى تشغيل الجلسة أولاً.
               </p>
             </div>
 
             {error && (
-              <div style={{ background: 'var(--danger-light)', color: 'var(--danger)', padding: '12px', borderRadius: 'var(--radius-sm)', fontSize: '14px', marginBottom: '20px', fontWeight: '600' }}>
+              <div className="bg-red-50 text-red-500 dark:bg-red-950/20 dark:text-red-400 p-3 rounded-lg text-sm mb-5 font-bold text-center">
                 {error}
               </div>
             )}
 
-            <form onSubmit={handleStartSession} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <form onSubmit={handleStartSession} className="flex flex-col gap-6">
               <div>
-                <label htmlFor="session-name" style={{ display: 'block', fontWeight: '700', fontSize: '14px', marginBottom: '8px' }}>
+                <label htmlFor="session-name" className="block text-slate-700 dark:text-slate-300 font-bold text-sm mb-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
                   اسم الجلسة (اختياري)
                 </label>
                 <input
@@ -341,12 +332,18 @@ export default function PlayPage() {
                   value={newSessionName}
                   onChange={(e) => setNewSessionName(e.target.value)}
                   placeholder="مثال: سحب ديوان الجمعية"
-                  className="input-field"
+                  className="input-field w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-900 outline-none focus:border-emerald-500 transition-colors"
                   disabled={creating}
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
                 />
               </div>
 
-              <button type="submit" className="btn btn-primary" style={{ padding: '12px', fontSize: '16px', width: '100%' }} disabled={creating}>
+              <button 
+                type="submit" 
+                className="w-full bg-emerald-500 hover:bg-emerald-600 active:translate-y-[1px] text-white font-extrabold py-3.5 px-6 rounded-lg text-base transition-all shadow-lg shadow-emerald-500/20 flex justify-center items-center gap-2" 
+                disabled={creating}
+                style={{ fontFamily: 'Cairo, sans-serif' }}
+              >
                 {creating ? 'جاري تهيئة الجلسة...' : 'ابدأ جلسة السحب الآن 🎲'}
               </button>
             </form>
@@ -356,169 +353,147 @@ export default function PlayPage() {
           <div>
             
             {/* Top Control Header Card */}
-            <div className="card" style={{ padding: '16px 24px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-              <div>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '700' }}>جلسة السحب واللعب الحالية</span>
-                <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text)' }}>{session.name}</h2>
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-md p-5 mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
+              <div className="text-center md:text-right">
+                <span className="text-xs text-slate-400 font-bold block" style={{ fontFamily: 'Cairo, sans-serif' }}>جلسة السحب واللعب الحالية</span>
+                <h2 className="text-xl font-extrabold text-slate-800 dark:text-white mt-1" style={{ fontFamily: 'Cairo, sans-serif' }}>{session.name}</h2>
               </div>
 
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div className="flex flex-wrap gap-2 justify-center items-center">
                 <button
                   onClick={handleCheckAllWinners}
-                  className="btn btn-outline"
-                  style={{ padding: '8px 14px', fontSize: '13px', borderColor: '#3498db', color: '#3498db', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-extrabold border border-blue-200 hover:bg-blue-50 text-blue-500 dark:border-blue-900 dark:hover:bg-blue-950/20 rounded-lg transition-colors"
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
                 >
                   <Award size={14} /> فحص كل الفائزين
                 </button>
 
-                <div style={{
-                  background: session.status === 'active' ? 'var(--primary-light)' : '#fff3cd',
-                  color: session.status === 'active' ? 'var(--primary)' : '#856404',
-                  padding: '6px 12px',
-                  borderRadius: '20px',
-                  fontWeight: '700',
-                  fontSize: '13px'
-                }}>
+                <div className={`px-3 py-1.5 rounded-full font-bold text-xs ${
+                  session.status === 'active' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400' : 'bg-amber-100 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400'
+                }`} style={{ fontFamily: 'Cairo, sans-serif' }}>
                   {session.status === 'active' ? 'نشط' : 'متوقف مؤقتا'}
                 </div>
 
-                <button onClick={handleToggleStatus} className="btn btn-outline" style={{ padding: '8px 14px', fontSize: '13px' }}>
+                <button 
+                  onClick={handleToggleStatus} 
+                  className="flex items-center gap-1 px-4 py-2 text-xs font-bold border border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg transition-colors"
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
+                >
                   {session.status === 'active' ? <Pause size={14} /> : <Play size={14} />}
-                  <span style={{ marginRight: '4px' }}>{session.status === 'active' ? 'إيقاف مؤقت' : 'استئناف'}</span>
+                  <span className="mr-1">{session.status === 'active' ? 'إيقاف مؤقت' : 'استئناف'}</span>
                 </button>
 
-                <button onClick={handleResetSession} className="btn btn-outline" style={{ padding: '8px 14px', fontSize: '13px', borderColor: 'var(--danger)', color: 'var(--danger)' }}>
+                <button 
+                  onClick={handleResetSession} 
+                  className="flex items-center gap-1 px-4 py-2 text-xs font-bold border border-red-200 hover:bg-red-50 dark:border-red-900/30 dark:hover:bg-red-950/10 text-red-500 rounded-lg transition-colors"
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
+                >
                   <RotateCcw size={14} /> إعادة الجلسة
                 </button>
 
-                <button onClick={handleFinishSession} className="btn btn-danger" style={{ padding: '8px 14px', fontSize: '13px' }}>
+                <button 
+                  onClick={handleFinishSession} 
+                  className="px-4 py-2 text-xs font-bold bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
+                >
                   إنهاء اللعبة
                 </button>
               </div>
             </div>
 
             {error && (
-              <div style={{ background: 'var(--danger-light)', color: 'var(--danger)', padding: '12px', borderRadius: 'var(--radius-sm)', marginBottom: '20px', fontWeight: '700' }}>
+              <div className="bg-red-50 text-red-500 dark:bg-red-950/20 dark:text-red-400 p-3 rounded-lg text-sm mb-6 font-bold text-center">
                 {error}
               </div>
             )}
 
-            {/* Split Screen */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '24px', alignItems: 'start' }}>
+            {/* Main responsive grid: 1 col on mobile, 3 cols on desktop */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
               
-              {/* Scoreboard of 1-90 */}
-              <div className="card">
-                <h3 style={{ fontSize: '16px', fontWeight: '800', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {/* Scoreboard of 1-90 (hidden on mobile, shown on desktop md/lg) */}
+              <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-md p-6 lg:col-span-2 hidden md:block">
+                <h3 className="text-base font-extrabold text-slate-800 dark:text-white mb-5 flex items-center gap-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
                   <span>📋</span> لوحة الأرقام المكتملة (1 إلى 90)
                 </h3>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: '8px', direction: 'ltr' }}>
+                <div className="grid grid-cols-10 gap-2.5" style={{ direction: 'ltr' }}>
                   {Array.from({ length: 90 }, (_, i) => i + 1).map((n) => {
                     const isDrawn = drawnNumbers.includes(n);
                     const isLatest = latestDraw === n;
 
                     return (
-                      <div
+                      <button
                         key={n}
                         onClick={() => handleNumberClick(n)}
-                        className={`board-number-cell ${isDrawn ? 'drawn' : 'undrawn'}`}
-                        style={{
-                          aspectRatio: '1',
-                          borderRadius: '8px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '18px',
-                          fontWeight: '800',
-                          background: isLatest ? 'var(--accent)' : isDrawn ? 'var(--primary)' : '#f1f2f6',
-                          color: isLatest ? '#2f3640' : isDrawn ? 'white' : 'var(--text-muted)',
-                          border: isLatest ? '2px solid #2f3640' : 'none',
-                          boxShadow: isLatest ? '0 0 8px var(--accent)' : 'none',
-                          cursor: isDrawn ? 'default' : 'pointer'
-                        }}
+                        className={`aspect-square rounded-lg flex items-center justify-center text-lg font-black transition-all ${
+                          isLatest 
+                            ? 'bg-amber-400 text-slate-900 border-2 border-slate-800 shadow-[0_0_12px_rgba(251,191,36,0.5)] scale-105' 
+                            : isDrawn 
+                            ? 'bg-emerald-500 text-white cursor-default' 
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-500 dark:bg-slate-900 dark:hover:bg-slate-950/50'
+                        }`}
+                        disabled={isDrawn}
                       >
                         {n}
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
 
-                <div style={{ display: 'flex', gap: '16px', marginTop: '20px', fontSize: '13px', fontWeight: '600', justifyContent: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <div style={{ width: '16px', height: '16px', borderRadius: '4px', background: 'var(--primary)' }}></div>
+                <div className="flex gap-5 mt-6 text-xs font-semibold justify-center" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-4 h-4 rounded bg-emerald-500"></div>
                     <span>مسحوبة ({drawnNumbers.length})</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <div style={{ width: '16px', height: '16px', borderRadius: '4px', background: 'var(--accent)' }}></div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-4 h-4 rounded bg-amber-400"></div>
                     <span>آخر رقم مسحوب</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <div style={{ width: '16px', height: '16px', borderRadius: '4px', background: '#f1f2f6' }}></div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-4 h-4 rounded bg-slate-100 dark:bg-slate-900"></div>
                     <span>متبقية ({90 - drawnNumbers.length})</span>
                   </div>
                 </div>
               </div>
 
-              {/* Side Panels: Drawing Sphere, Manual Draw Input, history */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {/* Side/Mobile Panels: Sphere, Manual Draw Input, history */}
+              <div className="flex flex-col gap-6 lg:col-span-1">
                 
-                {/* Random Draw Sphere */}
-                <div className="card" style={{
-                  textAlign: 'center',
-                  background: 'linear-gradient(135deg, #10ac84 0%, #22a6b3 100%)',
-                  color: 'white',
-                  padding: '30px 16px 24px'
-                }}>
-                  <span style={{ fontSize: '14px', fontWeight: '700', opacity: 0.85 }}>الرقم الحالي المسحوب</span>
+                {/* Random Draw Sphere (Responsive: larger on mobile) */}
+                <div className="bg-gradient-to-tr from-emerald-600 to-teal-500 text-white rounded-2xl shadow-lg p-6 md:p-8 text-center relative overflow-hidden">
+                  {/* Decorative background glow */}
+                  <div className="absolute inset-0 bg-white/5 opacity-40 blur-3xl rounded-full"></div>
                   
-                  <div style={{
-                    width: '150px',
-                    height: '150px',
-                    borderRadius: '50%',
-                    background: 'white',
-                    color: '#2f3640',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '68px',
-                    fontWeight: '900',
-                    margin: '16px auto',
-                    boxShadow: '0 8px 20px rgba(0,0,0,0.15)'
-                  }}>
+                  <span className="text-sm font-extrabold text-white/80 tracking-wider block" style={{ fontFamily: 'Cairo, sans-serif' }}>الرقم الحالي المسحوب</span>
+                  
+                  {/* Sphere size is responsive: huge on mobile */}
+                  <div className="relative w-48 h-48 md:w-40 md:h-40 rounded-full bg-white text-slate-900 flex items-center justify-center text-7xl md:text-6xl font-black mx-auto my-6 shadow-2xl border-4 border-slate-950/10">
                     {latestDraw ? latestDraw : '-'}
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-around', fontSize: '12px', opacity: 0.9, marginBottom: '20px' }}>
+                  <div className="flex justify-around text-xs text-white/95 font-bold mb-6" style={{ fontFamily: 'Cairo, sans-serif' }}>
                     <div>الرقم السابق: <strong>{previousDraw || '-'}</strong></div>
                     <div>ترتيب السحب: <strong>{drawnNumbers.length} / 90</strong></div>
                   </div>
 
+                  {/* Draw button is big and bold */}
                   <button
                     onClick={handleDrawRandomNumber}
                     disabled={drawing || session.status !== 'active' || drawnNumbers.length >= 90}
-                    className="btn"
-                    style={{
-                      width: '100%',
-                      padding: '14px',
-                      fontSize: '17px',
-                      fontWeight: '800',
-                      background: 'white',
-                      color: 'var(--primary)',
-                      boxShadow: '0 4px 6px rgba(0,0,0,0.08)',
-                      cursor: session.status === 'active' ? 'pointer' : 'not-allowed'
-                    }}
+                    className="w-full bg-white hover:bg-slate-50 disabled:bg-slate-100/20 disabled:text-white/40 text-emerald-600 font-extrabold py-3.5 md:py-3 px-6 rounded-xl text-base md:text-sm transition-all shadow-md active:translate-y-[1px]"
+                    style={{ fontFamily: 'Cairo, sans-serif' }}
                   >
                     {drawing ? 'جاري السحب...' : 'سحب رقم عشوائي 🎲'}
                   </button>
                 </div>
 
                 {/* Manual Draw Input Form */}
-                <div className="card" style={{ padding: '20px' }}>
-                  <h3 style={{ fontSize: '15px', fontWeight: '800', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-md p-5">
+                  <h3 className="text-sm font-extrabold text-slate-800 dark:text-white mb-3 flex items-center gap-1.5" style={{ fontFamily: 'Cairo, sans-serif' }}>
                     <Plus size={16} /> إضافة رقم مسحوب يدوياً:
                   </h3>
 
-                  <form onSubmit={handleAddManualNumber} style={{ display: 'flex', gap: '8px' }}>
+                  <form onSubmit={handleAddManualNumber} className="flex gap-2">
                     <input
                       type="number"
                       min="1"
@@ -526,47 +501,41 @@ export default function PlayPage() {
                       value={manualNumber}
                       onChange={(e) => setManualNumber(e.target.value)}
                       placeholder="رقم (1-90)"
-                      className="input-field"
-                      style={{ flex: 1, padding: '8px 12px' }}
+                      className="input-field flex-1 px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-900 outline-none focus:border-emerald-500 transition-colors"
                       disabled={addingManual || session.status !== 'active'}
                       required
                     />
                     <button
                       type="submit"
-                      className="btn btn-secondary"
-                      style={{ padding: '8px 16px', fontSize: '14px' }}
+                      className="px-5 py-2 text-xs font-bold bg-teal-500 hover:bg-teal-600 text-white rounded-lg transition-colors"
                       disabled={addingManual || session.status !== 'active'}
+                      style={{ fontFamily: 'Cairo, sans-serif' }}
                     >
-                      {addingManual ? 'جاري الإضافة...' : 'إضافة'}
+                      {addingManual ? 'جاري...' : 'إضافة'}
                     </button>
                   </form>
                 </div>
 
-                {/* Recent Logs */}
-                <div className="card" style={{ padding: '20px' }}>
-                  <h3 style={{ fontSize: '14px', fontWeight: '800', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {/* Recent Logs (Mobile: displays as inline button pills, Desktop: scrollable list) */}
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-md p-5">
+                  <h3 className="text-sm font-extrabold text-slate-800 dark:text-white mb-3 flex items-center gap-1.5" style={{ fontFamily: 'Cairo, sans-serif' }}>
                     <History size={16} /> تاريخ السحب (تنازلي):
                   </h3>
 
                   {session.numbers.length === 0 ? (
-                    <p style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', padding: '12px 0' }}>
+                    <p className="text-slate-400 text-xs text-center py-4" style={{ fontFamily: 'Cairo, sans-serif' }}>
                       لا توجد أرقام مسحوبة حالياً
                     </p>
                   ) : (
-                    <div style={{
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: '8px',
-                      maxHeight: '160px',
-                      overflowY: 'auto',
-                      padding: '4px',
-                      direction: 'ltr',
-                      justifyContent: 'flex-end'
-                    }}>
+                    /* Display as small inline capsule buttons, wrapped, perfect for small screens */
+                    <div className="flex flex-wrap gap-2 justify-end" style={{ direction: 'ltr' }}>
                       {[...session.numbers].reverse().map((n) => (
-                        <div key={n.drawOrder} style={{ padding: '5px 8px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '13px', fontWeight: '700' }}>
-                          <span style={{ color: 'var(--text-muted)', fontSize: '10px', marginRight: '4px' }}>#{n.drawOrder}</span>
-                          <span style={{ color: 'var(--primary)' }}>{n.number}</span>
+                        <div 
+                          key={n.drawOrder} 
+                          className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 dark:bg-slate-900 dark:border-slate-700 rounded-lg text-xs font-bold flex items-center gap-1.5"
+                        >
+                          <span className="text-slate-400 text-[10px]">#{n.drawOrder}</span>
+                          <span className="text-emerald-600 dark:text-emerald-400 font-mono">{n.number}</span>
                         </div>
                       ))}
                     </div>
@@ -579,78 +548,50 @@ export default function PlayPage() {
 
             {/* -------------------- 1. POPUP MODAL: NEW WINNER ALERT -------------------- */}
             {activeNewWinners.length > 0 && (
-              <div style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                width: '100vw',
-                height: '100vh',
-                background: 'rgba(0,0,0,0.5)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 200,
-                direction: 'rtl'
-              }}>
-                <div className="card" style={{
-                  width: '90%',
-                  maxWidth: '460px',
-                  textAlign: 'center',
-                  padding: '32px 24px',
-                  borderRadius: 'var(--radius-lg)',
-                  boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15)',
-                  border: '3px solid var(--primary)',
-                  position: 'relative',
-                  background: 'white',
-                  animation: 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
-                }}>
+              <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-[fadeIn_0.2s_ease-out]">
+                <div className="bg-white dark:bg-slate-800 rounded-3xl border-4 border-emerald-500 shadow-2xl max-w-md w-full p-6 text-center relative animate-[popIn_0.3s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards]">
+                  
                   <button
                     onClick={() => setActiveNewWinners([])}
-                    style={{ position: 'absolute', top: '16px', left: '16px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                    className="absolute top-4 left-4 text-slate-400 hover:text-slate-600 transition-colors"
                   >
                     <X size={20} />
                   </button>
 
-                  <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', animation: 'pulse 1.5s infinite' }}>
+                  <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
                     <Award size={32} />
                   </div>
 
-                  <h2 style={{ fontSize: '22px', fontWeight: '800', color: 'var(--primary)', marginBottom: '8px' }}>
+                  <h2 className="text-xl md:text-2xl font-black text-emerald-500 mb-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
                     🏆 يوجد فائز جديد! 🏆
                   </h2>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '20px' }}>
+                  <p className="text-slate-400 text-xs mb-5" style={{ fontFamily: 'Cairo, sans-serif' }}>
                     تم اكتمال خطوط اللعب للبطاقات التالية بفعل الرقم الأخير:
                   </p>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '180px', overflowY: 'auto', marginBottom: '24px' }}>
+                  <div className="flex flex-col gap-2.5 max-h-48 overflow-y-auto mb-6 text-right">
                     {activeNewWinners.map((winner, idx) => (
-                      <div key={idx} style={{
-                        padding: '12px',
-                        background: 'var(--bg)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius-sm)',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}>
-                        <span style={{ fontWeight: '800', fontSize: '14px' }}>
+                      <div 
+                        key={idx} 
+                        className="p-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-700/50 rounded-xl flex justify-between items-center"
+                      >
+                        <span className="font-bold text-slate-800 dark:text-white text-xs md:text-sm">
                           السيت: {formatSetNo(winner.setNo)} | البطاقة: {formatCardNo(winner.cardNo)}
                         </span>
-                        <span style={{
-                          background: winner.winType === 'البطاقة كاملة (دمبلة)' ? 'var(--accent)' : 'var(--primary-light)',
-                          color: winner.winType === 'البطاقة كاملة (دمبلة)' ? '#2f3640' : 'var(--primary)',
-                          padding: '4px 10px',
-                          borderRadius: '12px',
-                          fontWeight: '800',
-                          fontSize: '12px'
-                        }}>
+                        <span className={`px-2.5 py-1 rounded-full font-bold text-xs ${
+                          winner.winType === 'البطاقة كاملة (دمبلة)' ? 'bg-amber-400 text-slate-900' : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
+                        }`} style={{ fontFamily: 'Cairo, sans-serif' }}>
                           {winner.winType}
                         </span>
                       </div>
                     ))}
                   </div>
 
-                  <button onClick={() => setActiveNewWinners([])} className="btn btn-primary" style={{ width: '100%' }}>
+                  <button 
+                    onClick={() => setActiveNewWinners([])} 
+                    className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold py-3 px-6 rounded-xl transition-all"
+                    style={{ fontFamily: 'Cairo, sans-serif' }}
+                  >
                     متابعة اللعب 🎲
                   </button>
                 </div>
@@ -659,78 +600,56 @@ export default function PlayPage() {
 
             {/* -------------------- 2. POPUP MODAL: ALL WINNERS REPORT -------------------- */}
             {allWinners !== null && (
-              <div style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                width: '100vw',
-                height: '100vh',
-                background: 'rgba(0,0,0,0.5)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 190,
-                direction: 'rtl'
-              }}>
-                <div className="card" style={{
-                  width: '90%',
-                  maxWidth: '650px',
-                  padding: '30px',
-                  borderRadius: 'var(--radius-md)',
-                  maxHeight: '85vh',
-                  overflowY: 'auto',
-                  position: 'relative',
-                  background: 'white'
-                }}>
+              <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-[fadeIn_0.2s_ease-out]">
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full p-6 max-h-[85vh] overflow-y-auto relative">
                   
                   <button
                     onClick={() => setAllWinners(null)}
-                    style={{ position: 'absolute', top: '16px', left: '16px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                    className="absolute top-4 left-4 text-slate-400 hover:text-slate-600 transition-colors"
                   >
                     <X size={20} />
                   </button>
 
-                  <h3 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Award style={{ color: 'var(--primary)' }} /> تقرير الفائزين الإجمالي بالجلسة
+                  <h3 className="text-lg font-extrabold text-slate-800 dark:text-white mb-1 flex items-center gap-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                    <Award className="text-emerald-500" /> تقرير الفائزين الإجمالي بالجلسة
                   </h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '24px' }}>
+                  <p className="text-slate-400 text-xs mb-6" style={{ fontFamily: 'Cairo, sans-serif' }}>
                     قائمة بجميع البطاقات التي حققت فوزاً بخط واحد أو أكثر مقارنة بكامل الأرقام المسحوبة بالجلسة.
                   </p>
 
                   {allWinners.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
-                      <AlertTriangle size={36} style={{ margin: '0 auto 12px', opacity: 0.6 }} />
-                      <p>لا يوجد أي بطاقة فائزة في الجلسة حتى الآن.</p>
+                    <div className="text-center py-10 text-slate-400">
+                      <p style={{ fontFamily: 'Cairo, sans-serif' }}>لا يوجد أي بطاقة فائزة في الجلسة حتى الآن.</p>
                     </div>
                   ) : (
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '13px' }}>
+                    <div className="overflow-x-auto border border-slate-100 dark:border-slate-700 rounded-xl">
+                      <table className="w-full border-collapse text-center text-xs md:text-sm">
                         <thead>
-                          <tr style={{ background: 'var(--bg)', borderBottom: '2px solid var(--border)' }}>
-                            <th style={{ padding: '10px' }}>السيت</th>
-                            <th style={{ padding: '10px' }}>البطاقة</th>
-                            <th style={{ padding: '10px' }}>الخط الأول</th>
-                            <th style={{ padding: '10px' }}>الخط الثاني</th>
-                            <th style={{ padding: '10px' }}>الخط الثالث</th>
-                            <th style={{ padding: '10px' }}>البطاقة كاملة</th>
+                          <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700 text-slate-700 dark:text-slate-300">
+                            <th className="p-3 font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>السيت</th>
+                            <th className="p-3 font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>البطاقة</th>
+                            <th className="p-3 font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>الخط الأول</th>
+                            <th className="p-3 font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>الخط الثاني</th>
+                            <th className="p-3 font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>الخط الثالث</th>
+                            <th className="p-3 font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>البطاقة كاملة</th>
                           </tr>
                         </thead>
                         <tbody>
                           {allWinners.map((winner, idx) => (
-                            <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
-                              <td style={{ padding: '10px', fontWeight: '800' }}>Set {formatSetNo(winner.setNo)}</td>
-                              <td style={{ padding: '10px', fontWeight: '800' }}>Card {formatCardNo(winner.cardNo)}</td>
+                            <tr key={idx} className="border-b border-slate-100 dark:border-slate-700/60 text-slate-800 dark:text-slate-200">
+                              <td className="p-3 font-extrabold">Set {formatSetNo(winner.setNo)}</td>
+                              <td className="p-3 font-extrabold">Card {formatCardNo(winner.cardNo)}</td>
                               
-                              <td style={{ padding: '10px', fontWeight: '700', color: winner.row1 ? 'var(--primary)' : 'var(--text-muted)' }}>
+                              <td className={`p-3 font-bold ${winner.row1 ? 'text-emerald-500' : 'text-slate-400 dark:text-slate-500'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
                                 {winner.row1 ? '✅ فائز' : 'غير فائز'}
                               </td>
-                              <td style={{ padding: '10px', fontWeight: '700', color: winner.row2 ? 'var(--primary)' : 'var(--text-muted)' }}>
+                              <td className={`p-3 font-bold ${winner.row2 ? 'text-emerald-500' : 'text-slate-400 dark:text-slate-500'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
                                 {winner.row2 ? '✅ فائز' : 'غير فائز'}
                               </td>
-                              <td style={{ padding: '10px', fontWeight: '700', color: winner.row3 ? 'var(--primary)' : 'var(--text-muted)' }}>
+                              <td className={`p-3 font-bold ${winner.row3 ? 'text-emerald-500' : 'text-slate-400 dark:text-slate-500'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
                                 {winner.row3 ? '✅ فائز' : 'غير فائز'}
                               </td>
-                              <td style={{ padding: '10px', fontWeight: '800', color: winner.fullCard ? 'var(--accent)' : 'var(--text-muted)' }}>
+                              <td className={`p-3 font-black ${winner.fullCard ? 'text-amber-500' : 'text-slate-400 dark:text-slate-500'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
                                 {winner.fullCard ? '🏆 دمبلة' : 'غير فائزة'}
                               </td>
                             </tr>
@@ -740,8 +659,12 @@ export default function PlayPage() {
                     </div>
                   )}
 
-                  <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
-                    <button onClick={() => setAllWinners(null)} className="btn btn-primary">
+                  <div className="mt-6 flex justify-end">
+                    <button 
+                      onClick={() => setAllWinners(null)} 
+                      className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 px-6 rounded-lg text-sm"
+                      style={{ fontFamily: 'Cairo, sans-serif' }}
+                    >
                       إغلاق التقرير
                     </button>
                   </div>
@@ -754,18 +677,6 @@ export default function PlayPage() {
         )}
 
       </div>
-
-      <style>{`
-        .board-number-cell {
-          transition: all 0.15s ease-in-out;
-        }
-        .board-number-cell.undrawn:hover {
-          background-color: var(--primary-light) !important;
-          color: var(--primary) !important;
-          transform: scale(1.08);
-          box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        }
-      `}</style>
-    </>
+    </ProtectedRoute>
   );
 }

@@ -1,35 +1,70 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ADMIN_COOKIE_NAME, ADMIN_TOKEN_VALUE } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
+import { USER_COOKIE_NAME } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   try {
-    const { password } = await req.json();
+    const { username, password } = await req.json();
 
-    // Default password is admin123
-    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
-
-    if (password === adminPassword) {
-      const response = NextResponse.json({ success: true, message: 'تم تسجيل الدخول بنجاح' });
-      
-      // Set cookie for 7 days
-      response.cookies.set(ADMIN_COOKIE_NAME, ADMIN_TOKEN_VALUE, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 60 * 60 * 24 * 7, // 7 days
-        path: '/',
-      });
-
-      return response;
+    if (!username || !password) {
+      return NextResponse.json(
+        { success: false, message: 'يرجى إدخال اسم المستخدم وكلمة المرور' },
+        { status: 400 }
+      );
     }
 
-    return NextResponse.json(
-      { success: false, message: 'كلمة المرور غير صحيحة' },
-      { status: 401 }
-    );
+    // Query profiles table in Supabase
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('username, password, role')
+      .eq('username', username)
+      .maybeSingle();
+
+    if (error) {
+      if (error.code === '42P01') {
+        return NextResponse.json(
+          { 
+            success: false, 
+            message: 'جدول المستخدمين غير موجود في قاعدة البيانات. يرجى تهيئة جداول الأدوار في Supabase وتشغيل سكربت الـ SQL.',
+            isSchemaMissing: true
+          },
+          { status: 500 }
+        );
+      }
+      throw error;
+    }
+
+    if (!profile || profile.password !== password) {
+      return NextResponse.json(
+        { success: false, message: 'اسم المستخدم أو كلمة المرور غير صحيحة' },
+        { status: 401 }
+      );
+    }
+
+    const userSession = {
+      username: profile.username,
+      role: profile.role
+    };
+
+    const cookieValue = Buffer.from(JSON.stringify(userSession)).toString('base64');
+    const response = NextResponse.json({ 
+      success: true, 
+      message: 'تم تسجيل الدخول بنجاح',
+      user: userSession
+    });
+
+    response.cookies.set(USER_COOKIE_NAME, cookieValue, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+      path: '/',
+    });
+
+    return response;
   } catch (error: any) {
     return NextResponse.json(
-      { success: false, message: 'حدث خطأ أثناء معالجة الطلب' },
+      { success: false, message: 'حدث خطأ أثناء معالجة تسجيل الدخول: ' + error.message },
       { status: 500 }
     );
   }

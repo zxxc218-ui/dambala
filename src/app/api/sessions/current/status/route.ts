@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { hasRole } from '@/lib/auth';
 
 export async function PUT(req: NextRequest) {
   try {
+    if (!hasRole(req, ['admin', 'caller'])) {
+      return NextResponse.json(
+        { success: false, message: 'غير مصرح لك بالقيام بهذا الإجراء' },
+        { status: 403 }
+      );
+    }
     const { status } = await req.json();
 
     if (!status || !['active', 'paused', 'finished'].includes(status)) {

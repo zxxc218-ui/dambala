@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { hasRole } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   try {
+    if (!hasRole(req, ['admin', 'caller'])) {
+      return NextResponse.json(
+        { success: false, message: 'غير مصرح لك بالقيام بهذا الإجراء' },
+        { status: 403 }
+      );
+    }
     // 1. Fetch current active session from Supabase
     const { data: session, error: sessionErr } = await supabase
       .from('draw_sessions')

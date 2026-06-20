@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import { validateTambolaData, ValidationError, ValidatedSet } from '@/lib/validation';
@@ -8,10 +8,10 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { FileDown, Upload, CheckCircle2, AlertOctagon, HelpCircle, ShieldAlert, ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 export default function ImportPage() {
   const router = useRouter();
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [validating, setValidating] = useState(false);
@@ -23,48 +23,6 @@ export default function ImportPage() {
   const [errors, setErrors] = useState<ValidationError[]>([]);
   const [validatedSets, setValidatedSets] = useState<ValidatedSet[]>([]);
   const [dbMessage, setDbMessage] = useState('');
-
-  useEffect(() => {
-    async function checkAuth() {
-      try {
-        const res = await fetch('/api/auth/me');
-        const data = await res.json();
-        setIsAdmin(data.authenticated);
-      } catch (err) {
-        setIsAdmin(false);
-      }
-    }
-    checkAuth();
-  }, []);
-
-  if (isAdmin === null) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', gap: '8px' }}>
-        <Loader2 className="animate-spin" size={24} />
-        <span>جاري التحقق من صلاحيات الدخول...</span>
-      </div>
-    );
-  }
-
-  if (isAdmin === false) {
-    return (
-      <>
-        <Navbar />
-        <div className="container" style={{ maxWidth: '600px', padding: '60px 16px' }}>
-          <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-            <ShieldAlert size={64} style={{ color: 'var(--danger)', margin: '0 auto 20px' }} />
-            <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '12px' }}>غير مصرح بالدخول</h2>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '24px', lineHeight: '1.6' }}>
-              هذه الصفحة مخصصة لمدير النظام فقط لرفع وتحديث سيتات الدمبلة. يرجى تسجيل الدخول أولاً للوصول.
-            </p>
-            <Link href="/login" className="btn btn-primary">
-              تسجيل الدخول كمسؤول
-            </Link>
-          </div>
-        </div>
-      </>
-    );
-  }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -183,7 +141,7 @@ export default function ImportPage() {
   };
 
   return (
-    <>
+    <ProtectedRoute allowedRoles={['admin']}>
       <Navbar />
       <div className="container" style={{ maxWidth: '900px', paddingBottom: '60px' }}>
         
@@ -426,6 +384,6 @@ export default function ImportPage() {
           </div>
         )}
       </div>
-    </>
+    </ProtectedRoute>
   );
 }

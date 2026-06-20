@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 import Navbar from '@/components/Navbar';
-import { Play, Award, Printer, LayoutGrid, FileUp, ShieldAlert, CheckCircle2, HelpCircle } from 'lucide-react';
+import { Play, Award, Printer, LayoutGrid, ShieldAlert, CheckCircle2, Tv } from 'lucide-react';
 
 export const revalidate = 0; // Disable caching to always reflect DB state
 
@@ -10,14 +10,25 @@ export default async function Home() {
   let activeSession = null;
 
   try {
-    setsCount = await prisma.set.count();
-    activeSession = await prisma.drawSession.findFirst({
-      where: {
-        status: { in: ['active', 'paused'] }
-      }
-    });
+    const { count, error: countErr } = await supabase
+      .from('sets')
+      .select('*', { count: 'exact', head: true });
+    
+    if (!countErr) {
+      setsCount = count || 0;
+    }
+
+    const { data: sessionRecord, error: sessionErr } = await supabase
+      .from('draw_sessions')
+      .select('name')
+      .in('status', ['active', 'paused'])
+      .maybeSingle();
+
+    if (!sessionErr && sessionRecord) {
+      activeSession = sessionRecord;
+    }
   } catch (err) {
-    console.error('Error fetching database count:', err);
+    console.error('Error fetching database count from Supabase:', err);
   }
 
   return (
@@ -27,10 +38,10 @@ export default async function Home() {
         
         {/* Hero Section */}
         <div style={{ textAlign: 'center', marginBottom: '48px' }}>
-          <h1 style={{ fontSize: '36px', fontWeight: '800', color: 'var(--text)', marginBottom: '16px' }}>
+          <h1 style={{ fontSize: '36px', fontWeight: '800', color: 'var(--text)', marginBottom: '16px', fontFamily: 'Cairo, sans-serif' }}>
             نظام إدارة وتشغيل لعبة الدمبلة العراقية
           </h1>
-          <p style={{ fontSize: '18px', color: 'var(--text-muted)', maxWidth: '600px', margin: '0 auto 24px' }}>
+          <p style={{ fontSize: '18px', color: 'var(--text-muted)', maxWidth: '600px', margin: '0 auto 24px', fontFamily: 'Cairo, sans-serif' }}>
             لوحة تحكم كاملة للتحقق من أرقام السيتات، تشغيل جولات السحب العشوائي، وفحص فوز البطاقات فورياً مع ميزة الطباعة بجودة عالية.
           </p>
 
@@ -44,7 +55,8 @@ export default async function Home() {
               color: 'var(--primary)',
               borderRadius: '20px',
               fontWeight: '700',
-              fontSize: '14px'
+              fontSize: '14px',
+              fontFamily: 'Cairo, sans-serif'
             }}>
               <span className="pulse-dot"></span>
               هناك جلسة سحب جارية حالياً: {activeSession.name}
@@ -63,19 +75,19 @@ export default async function Home() {
             marginBottom: '32px',
             display: 'flex',
             alignItems: 'flex-start',
-            gap: '16px'
+            gap: '16px',
+            direction: 'rtl'
           }}>
             <ShieldAlert size={24} style={{ flexShrink: 0, marginTop: '2px' }} />
             <div>
-              <h3 style={{ fontWeight: '700', marginBottom: '6px' }}>قاعدة البيانات فارغة!</h3>
-              <p style={{ fontSize: '14px', lineHeight: '1.6' }}>
-                لم يتم رفع أي سيتات أو بطاقات دمبلة إلى قاعدة البيانات حتى الآن.
-                يرجى تسجيل الدخول كمسؤول (Admin) عن طريق الزر في الأعلى بكلمة مرور الافتراضية <strong>admin123</strong>، 
-                ثم التوجه لصفحة <strong>"استيراد CSV"</strong> لرفع ملف السيتات والتحقق من صحته.
+              <h3 style={{ fontWeight: '700', marginBottom: '6px', fontFamily: 'Cairo, sans-serif' }}>قاعدة البيانات فارغة!</h3>
+              <p style={{ fontSize: '14px', lineHeight: '1.6', fontFamily: 'Cairo, sans-serif' }}>
+                لم يتم رفع أي سيتات أو بطاقات دمبلة إلى قاعدة بيانات Supabase حتى الآن.
+                يرجى تسجيل الدخول كمسؤول (Admin) لتعبئة البطاقات يدوياً أو استيرادها من ملف CSV.
               </p>
               <div style={{ marginTop: '12px' }}>
-                <Link href="/login" className="btn btn-primary" style={{ padding: '6px 16px', fontSize: '13px', background: '#856404', color: 'white' }}>
-                  تسجيل الدخول كمسؤول
+                <Link href="/login" className="btn btn-primary" style={{ padding: '6px 16px', fontSize: '13px', background: '#856404', color: 'white', fontFamily: 'Cairo, sans-serif' }}>
+                  تسجيل الدخول للنظام
                 </Link>
               </div>
             </div>
@@ -90,11 +102,12 @@ export default async function Home() {
             marginBottom: '32px',
             display: 'flex',
             alignItems: 'center',
-            gap: '12px'
+            gap: '12px',
+            direction: 'rtl'
           }}>
             <CheckCircle2 size={20} />
-            <span style={{ fontWeight: '700', fontSize: '15px' }}>
-              النظام جاهز للتشغيل. قاعدة البيانات تحتوي على <strong>{setsCount}</strong> سيت دمبلة ({setsCount * 6} بطاقة).
+            <span style={{ fontWeight: '700', fontSize: '15px', fontFamily: 'Cairo, sans-serif' }}>
+              النظام جاهز للتشغيل. قاعدة البيانات السحابية تحتوي على <strong>{setsCount}</strong> سيت دمبلة ({setsCount * 6} بطاقة).
             </span>
           </div>
         )}
@@ -103,7 +116,8 @@ export default async function Home() {
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: '24px'
+          gap: '24px',
+          direction: 'rtl'
         }}>
           
           {/* Card 1: Play */}
@@ -112,47 +126,47 @@ export default async function Home() {
               <Play size={24} />
             </div>
             <div>
-              <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '8px' }}>تشغيل اللعبة والسحب</h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '14px', lineHeight: '1.6' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '8px', fontFamily: 'Cairo, sans-serif' }}>تشغيل اللعبة والسحب</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '14px', lineHeight: '1.6', fontFamily: 'Cairo, sans-serif' }}>
                 سحب الأرقام من 1 إلى 90 بدون تكرار في نفس الجلسة، مع إمكانية الإيقاف المؤقت وعرض الأرقام المتبقية والمسحوبة.
               </p>
             </div>
           </Link>
 
           {/* Card 2: Check Winner */}
-          <Link href="/check-winner" className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <Link href="/check" className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--secondary-light)', color: 'var(--secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Award size={24} />
             </div>
             <div>
-              <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '8px' }}>فحص الفائز والبطاقة</h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '14px', lineHeight: '1.6' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '8px', fontFamily: 'Cairo, sans-serif' }}>فحص الفائز والبطاقة</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '14px', lineHeight: '1.6', fontFamily: 'Cairo, sans-serif' }}>
                 إدخال رقم السيت والبطاقة لعرضها وتلوين الأرقام المسحوبة آلياً، والتحقق من اكتمال الأسطر أو البطاقة كاملة.
               </p>
             </div>
           </Link>
 
-          {/* Card 3: Print */}
-          <Link href="/print" className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#fff2e6', color: '#ff9f43', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Printer size={24} />
+          {/* Card 3: Display TV */}
+          <Link href="/display" className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#e0f2f1', color: '#009688', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Tv size={24} />
             </div>
             <div>
-              <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '8px' }}>طباعة وتصدير الكروت</h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '14px', lineHeight: '1.6' }}>
-                تصدير سيتات الدمبلة لملفات PDF جاهزة للطباعة على ورق A4 بخيار (6 بطاقات بالصفحة) أو (بطاقة واحدة كبيرة).
+              <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '8px', fontFamily: 'Cairo, sans-serif' }}>شاشة عرض التلفزيون</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '14px', lineHeight: '1.6', fontFamily: 'Cairo, sans-serif' }}>
+                شاشة عرض خالية من الأزرار ومريحة بصرياً لعرض الرقم الأخير والمسحوبات على بروجكتر أو تلفاز شاشة كبيرة.
               </p>
             </div>
           </Link>
 
           {/* Card 4: Manage Sets */}
-          <Link href="/admin/sets" className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <Link href="/admin" className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#ebf3ff', color: '#3867d6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <LayoutGrid size={24} />
             </div>
             <div>
-              <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '8px' }}>إدارة السيتات والتعديل</h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '14px', lineHeight: '1.6' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '8px', fontFamily: 'Cairo, sans-serif' }}>إدارة السيتات والتعديل</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '14px', lineHeight: '1.6', fontFamily: 'Cairo, sans-serif' }}>
                 استعراض السيتات الـ 150 والتعديل اليدوي على أرقام الخلايا داخل البطاقات مع تفعيل الفحص التلقائي بعد التعديل.
               </p>
             </div>
@@ -167,7 +181,8 @@ export default async function Home() {
           paddingTop: '24px',
           textAlign: 'center',
           color: 'var(--text-muted)',
-          fontSize: '14px'
+          fontSize: '14px',
+          fontFamily: 'Cairo, sans-serif'
         }}>
           لعبة الدمبلة العراقية / Tambola | نظام ويب كامل لإدارة اللعبة
         </div>

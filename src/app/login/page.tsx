@@ -1,15 +1,36 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
-import { ShieldCheck, Lock, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, User, Lock, AlertTriangle } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // If already logged in, redirect them to their home page
+  useEffect(() => {
+    const userStr = localStorage.getItem('tambola_user');
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        redirectByRole(user.role);
+      } catch {
+        localStorage.removeItem('tambola_user');
+      }
+    }
+  }, [router]);
+
+  const redirectByRole = (role: string) => {
+    if (role === 'admin') router.push('/admin');
+    else if (role === 'caller') router.push('/play');
+    else if (role === 'checker') router.push('/check');
+    else if (role === 'viewer') router.push('/display');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,13 +41,14 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ username, password }),
       });
 
       const data = await res.json();
 
       if (res.ok && data.success) {
-        router.push('/admin/import');
+        localStorage.setItem('tambola_user', JSON.stringify(data.user));
+        redirectByRole(data.user.role);
         router.refresh();
       } else {
         setError(data.message || 'حدث خطأ أثناء تسجيل الدخول');
@@ -41,54 +63,51 @@ export default function LoginPage() {
   return (
     <>
       <Navbar />
-      <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 120px)', maxWidth: '440px' }}>
-        <div className="card" style={{ width: '100%', padding: '32px' }}>
+      <div className="container min-h-[calc(100vh-140px)] flex items-center justify-center max-w-md mx-auto px-4 py-8">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl w-full p-8 md:p-10">
           
-          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{
-              width: '64px',
-              height: '64px',
-              borderRadius: '50%',
-              background: 'var(--primary-light)',
-              color: 'var(--primary)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 16px'
-            }}>
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
               <ShieldCheck size={32} />
             </div>
-            <h2 style={{ fontSize: '22px', fontWeight: '800' }}>دخول المسؤول (Admin)</h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '6px' }}>
-              يرجى إدخال كلمة المرور للوصول إلى لوحة الإدارة والاستيراد والتعديل يدوياً.
+            <h2 className="text-2xl font-black text-slate-800 dark:text-white" style={{ fontFamily: 'Cairo, sans-serif' }}>تسجيل الدخول للعبة</h2>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mt-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              يرجى إدخال اسم المستخدم وكلمة المرور للوصول لصلاحيات اللعبة.
             </p>
           </div>
 
           {error && (
-            <div style={{
-              background: 'var(--danger-light)',
-              color: 'var(--danger)',
-              border: '1px solid rgba(238, 82, 83, 0.2)',
-              padding: '12px',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '14px',
-              fontWeight: '600',
-              marginBottom: '20px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}>
-              <AlertTriangle size={18} />
-              <span>{error}</span>
+            <div className="bg-red-50 text-red-500 dark:bg-red-950/20 dark:text-red-400 p-3.5 rounded-lg text-sm mb-5 font-bold flex items-center gap-2 text-right">
+              <AlertTriangle size={18} className="flex-shrink-0" />
+              <span style={{ fontFamily: 'Cairo, sans-serif' }}>{error}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             <div>
-              <label htmlFor="password" style={{ display: 'block', fontWeight: '700', fontSize: '14px', marginBottom: '8px' }}>
+              <label htmlFor="username" className="block text-slate-700 dark:text-slate-300 font-bold text-sm mb-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                اسم المستخدم
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  id="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="admin, caller, checker, viewer"
+                  required
+                  className="w-full pl-4 pr-10 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-900 outline-none focus:border-emerald-500 transition-colors text-sm"
+                  disabled={loading}
+                />
+                <User size={18} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-slate-700 dark:text-slate-300 font-bold text-sm mb-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
                 كلمة المرور
               </label>
-              <div style={{ position: 'relative' }}>
+              <div className="relative">
                 <input
                   type="password"
                   id="password"
@@ -96,32 +115,27 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
-                  className="input-field"
-                  style={{ paddingLeft: '40px' }}
+                  className="w-full pl-4 pr-10 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-900 outline-none focus:border-emerald-500 transition-colors text-sm"
                   disabled={loading}
                 />
-                <Lock size={18} style={{
-                  position: 'absolute',
-                  left: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  color: 'var(--text-muted)'
-                }} />
+                <Lock size={18} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               </div>
             </div>
 
             <button
               type="submit"
-              className="btn btn-primary"
-              style={{ width: '100%', padding: '12px', fontSize: '16px' }}
+              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold py-3 px-6 rounded-lg text-base transition-colors shadow-lg shadow-emerald-500/20 mt-2"
               disabled={loading}
+              style={{ fontFamily: 'Cairo, sans-serif' }}
             >
               {loading ? 'جاري التحقق...' : 'تسجيل الدخول'}
             </button>
           </form>
 
-          <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)' }}>
-            كلمة المرور الافتراضية للتشغيل المحلي هي: <strong>admin123</strong>
+          <div className="mt-8 border-t border-slate-100 dark:border-slate-700 pt-5 text-center text-xs text-slate-400 leading-relaxed" style={{ fontFamily: 'Cairo, sans-serif' }}>
+            الحسابات الافتراضية للتجربة (المستخدم / كلمة المرور):<br/>
+            <strong>admin / admin123</strong> | <strong>caller / caller123</strong><br/>
+            <strong>checker / checker123</strong> | <strong>viewer / viewer123</strong>
           </div>
 
         </div>

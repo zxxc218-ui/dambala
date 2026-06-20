@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { hasRole } from '@/lib/auth';
 
 // GET: Fetch all sessions
 export async function GET(req: NextRequest) {
@@ -42,6 +43,13 @@ export async function GET(req: NextRequest) {
 // POST: Start a new game session
 export async function POST(req: NextRequest) {
   try {
+    if (!hasRole(req, ['admin', 'caller'])) {
+      return NextResponse.json(
+        { success: false, message: 'غير مصرح لك بالقيام بهذا الإجراء' },
+        { status: 403 }
+      );
+    }
+
     const { name } = await req.json();
     const sessionName = name || `جلسة سحب دمبلة - ${new Date().toLocaleString('ar-EG')}`;
 
