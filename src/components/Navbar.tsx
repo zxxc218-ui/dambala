@@ -110,42 +110,16 @@ export default function Navbar() {
   ];
 
   // Filter tabs by user's role
-  const visibleTabs = allTabs.filter(tab => !userRole || tab.roles.includes(userRole));
+  const visibleTabs = allTabs;
 
   return (
     <>
       {/* Top Header Bar */}
-      <header className="w-full h-14 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 sticky top-0 z-40 select-none">
+      <header className="w-full h-14 bg-slate-900 border-b border-slate-800 flex items-center justify-center px-4 sticky top-0 z-40 select-none">
         <Link href="/" className="flex items-center gap-2 text-emerald-500 font-extrabold text-lg transition-transform active:scale-95">
           <span>🎯</span>
           <span>الدمبلة العراقية</span>
         </Link>
-
-        <div className="flex items-center gap-2">
-          {session ? (
-            <div className="flex items-center gap-2">
-              <div className="flex flex-col text-right">
-                <span className="text-xs font-bold text-slate-200">{session.username}</span>
-                <span className="text-[10px] text-emerald-400 font-medium">{getRoleLabel(session.role)}</span>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-red-400 transition-colors cursor-pointer"
-                title="تسجيل الخروج"
-              >
-                <LogOut size={16} />
-              </button>
-            </div>
-          ) : (
-            <Link
-              href="/login"
-              className="flex items-center gap-1 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs py-1.5 px-3 rounded-lg transition-all active:scale-95"
-            >
-              <User size={13} />
-              <span>دخول</span>
-            </Link>
-          )}
-        </div>
       </header>
 
       {/* Fixed Bottom Navigation Bar (Centered on desktop inside max-w-[430px]) */}
