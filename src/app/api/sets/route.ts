@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { isAdmin } from '@/lib/auth';
 import { validateTambolaData } from '@/lib/validation';
+import { invalidateCardIndex } from '@/lib/cards';
 
 // GET: Fetch all sets with validation status
 export async function GET(req: NextRequest) {
@@ -184,6 +185,8 @@ export async function POST(req: NextRequest) {
       if (rowsErr) throw rowsErr;
     }
 
+    invalidateCardIndex();
+
     return NextResponse.json({
       success: true,
       message: `تم استيراد ${sets.length} سيت بنجاح (إجمالي ${sets.length * 6} بطاقة)`
@@ -212,6 +215,8 @@ export async function DELETE(req: NextRequest) {
       .neq('set_no', 0);
 
     if (error) throw error;
+
+    invalidateCardIndex();
 
     return NextResponse.json({
       success: true,
