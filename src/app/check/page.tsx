@@ -156,10 +156,40 @@ export default function CheckWinnerPage() {
     };
   };
 
+  /**
+   * الزوايا — the four corners of the card:
+   * the first and last number of row 1, and the first and last of row 3.
+   */
+  const getCornersStatus = (card: Card) => {
+    const numbersOf = (rowNo: number) => {
+      const row = card.rows.find(r => r.rowNo === rowNo);
+      if (!row) return [] as number[];
+      return [row.c1, row.c2, row.c3, row.c4, row.c5, row.c6, row.c7, row.c8, row.c9]
+        .filter((v): v is number => v !== null);
+    };
+
+    const top = numbersOf(1);
+    const bottom = numbersOf(3);
+
+    const cornerNumbers: number[] = [];
+    if (top.length > 0) cornerNumbers.push(top[0], top[top.length - 1]);
+    if (bottom.length > 0) cornerNumbers.push(bottom[0], bottom[bottom.length - 1]);
+
+    const missingNumbers = cornerNumbers.filter(n => !drawnNumbers.includes(n));
+
+    return {
+      isComplete: cornerNumbers.length > 0 && missingNumbers.length === 0,
+      missingNumbers,
+      cornerNumbers,
+      totalCount: cornerNumbers.length,
+    };
+  };
+
   // Status variables if card found
   const row1Status = cardData ? getRowStatus(cardData.rows.find(r => r.rowNo === 1)!) : null;
   const row2Status = cardData ? getRowStatus(cardData.rows.find(r => r.rowNo === 2)!) : null;
   const row3Status = cardData ? getRowStatus(cardData.rows.find(r => r.rowNo === 3)!) : null;
+  const cornersStatus = cardData ? getCornersStatus(cardData) : null;
   const cardStatus = cardData ? getCardStatus(cardData) : null;
 
   const formatSetNo = (no: string | number) => String(no).padStart(3, '0');
@@ -381,6 +411,34 @@ export default function CheckWinnerPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Corners (الزوايا) */}
+                {cornersStatus && (
+                  <div className={`flex flex-col gap-1.5 p-3 rounded-xl border text-right ${
+                    cornersStatus.isComplete
+                      ? 'bg-sky-500/10 border-sky-500/20'
+                      : 'bg-slate-950 border-slate-800/80'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-extrabold text-slate-200" style={{ fontFamily: 'Cairo, sans-serif' }}>الزوايا (4 أرقام)</span>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg border ${
+                        cornersStatus.isComplete
+                          ? 'bg-sky-500/10 text-sky-400 border-sky-500/20'
+                          : 'bg-slate-900 text-slate-500 border-slate-800/80'
+                      }`} style={{ fontFamily: 'Cairo, sans-serif' }}>
+                        {cornersStatus.isComplete ? 'فائز ✅' : 'غير فائز'}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-slate-400 leading-relaxed" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                      أرقام الزوايا: <span className="font-bold text-slate-200 font-mono tracking-wide">{cornersStatus.cornerNumbers.join(', ')}</span>
+                    </div>
+                    {!cornersStatus.isComplete && (
+                      <div className="text-[10px] text-slate-450 leading-relaxed" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                        الأرقام الناقصة: <span className="font-bold text-red-400 font-mono tracking-wide">{cornersStatus.missingNumbers.join(', ')}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Full Card / Tambola Status Card */}
                 <div className={`flex flex-col gap-1.5 p-4 rounded-2xl border text-right mt-1.5 ${
