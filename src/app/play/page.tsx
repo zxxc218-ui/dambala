@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
-import { Play, Pause, RotateCcw, Award, History, Sparkles, Loader2, Plus, X, ListRestart } from 'lucide-react';
+import { Play, Pause, RotateCcw, Award, History, Sparkles, Loader2, Plus, X, ListRestart, Undo2 } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
 interface DrawSession {
@@ -19,6 +19,7 @@ interface Winner {
   row1?: boolean;
   row2?: boolean;
   row3?: boolean;
+  corners?: boolean;
   fullCard?: boolean;
 }
 
@@ -32,7 +33,9 @@ export default function PlayPage() {
 
   // Manual Draw State
   const [manualNumber, setManualNumber] = useState('');
-  const [addingManual, setAddingManual] = useState(false);
+  /** how many number requests are still in flight (the UI does not wait on them) */
+  const [pendingCount, setPendingCount] = useState(0);
+  const [undoing, setUndoing] = useState(false);
 
   // New Winner Alerts State
   const [activeNewWinners, setActiveNewWinners] = useState<Winner[]>([]);
@@ -88,16 +91,78 @@ export default function PlayPage() {
   };
 
   const processDrawResult = (data: any) => {
-    if (session) {
-      setSession({
-        ...session,
-        numbers: [...session.numbers, { number: data.number, drawOrder: data.order }]
-      });
+    setSession(prev => {
+      if (!prev) return prev;
+      if (prev.numbers.some(n => n.number === data.number)) return prev; // already shown optimistically
+      return { ...prev, numbers: [...prev.numbers, { number: data.number, drawOrder: data.order }] };
+    });
 
-      // If new winners are detected, trigger alert popup
-      if (data.newWinners && data.newWinners.length > 0) {
-        setActiveNewWinners(data.newWinners);
+    // If new winners are detected, trigger alert popup
+    if (data.newWinners && data.newWinners.length > 0) {
+      setActiveNewWinners(data.newWinners);
+    }
+  };
+
+  /**
+   * Add a specific number.
+   * The number appears on screen immediately and the request runs in the
+   * background, so the caller can keep entering numbers without waiting.
+   * If the server rejects it, the number is taken back off and the reason shown.
+   */
+  const submitNumber = (num: number) => {
+    if (!session || session.status !== 'active') return;
+    if (session.numbers.some(n => n.number === num)) {
+      setError('هذا الرقم مسحوب مسبقاً');
+      return;
+    }
+
+    setError('');
+    setSession(prev =>
+      prev ? { ...prev, numbers: [...prev.numbers, { number: num, drawOrder: prev.numbers.length + 1 }] } : prev
+    );
+    setPendingCount(c => c + 1);
+
+    fetch('/api/sessions/current/draw', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ number: num }),
+    })
+      .then(res => res.json().then(data => ({ ok: res.ok, data })))
+      .then(({ ok, data }) => {
+        if (ok && data.success) {
+          if (data.newWinners && data.newWinners.length > 0) setActiveNewWinners(data.newWinners);
+        } else {
+          // roll the number back out
+          setSession(prev => (prev ? { ...prev, numbers: prev.numbers.filter(n => n.number !== num) } : prev));
+          setError(data.message || 'حدث خطأ أثناء إضافة الرقم');
+        }
+      })
+      .catch(() => {
+        setSession(prev => (prev ? { ...prev, numbers: prev.numbers.filter(n => n.number !== num) } : prev));
+        setError('تعذر الاتصال بالسيرفر لإضافة الرقم');
+      })
+      .finally(() => setPendingCount(c => c - 1));
+  };
+
+  /** Undo the last drawn number — for a mistyped call. */
+  const handleUndoLast = async () => {
+    if (!session || undoing || session.numbers.length === 0) return;
+    setUndoing(true);
+    setError('');
+    try {
+      const res = await fetch('/api/sessions/current/draw', { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSession(prev => (prev ? { ...prev, numbers: prev.numbers.slice(0, -1) } : prev));
+        setActiveNewWinners([]);
+        setAllWinners(null);
+      } else {
+        setError(data.message || 'تعذر إلغاء الرقم');
       }
+    } catch {
+      setError('تعذر الاتصال بالسيرفر لإلغاء الرقم');
+    } finally {
+      setUndoing(false);
     }
   };
 
@@ -124,72 +189,27 @@ export default function PlayPage() {
     }
   };
 
-  const handleAddManualNumber = async (e: React.FormEvent) => {
+  const handleAddManualNumber = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!session || addingManual || session.status !== 'active') return;
-    
-    setError('');
+    if (!session || session.status !== 'active') return;
+
     const num = parseInt(manualNumber, 10);
     if (isNaN(num) || num < 1 || num > 90) {
       setError('يرجى إدخال رقم صحيح بين 1 و 90');
       return;
     }
 
-    setAddingManual(true);
-
-    try {
-      const res = await fetch('/api/sessions/current/draw', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ number: num })
-      });
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        processDrawResult(data);
-        setManualNumber(''); // Reset field
-      } else {
-        setError(data.message || 'حدث خطأ أثناء إضافة الرقم يدوياً');
-      }
-    } catch (err) {
-      setError('تعذر إضافة الرقم يدوياً للسيرفر');
-    } finally {
-      setAddingManual(false);
-    }
+    setManualNumber(''); // clear straight away so the next number can be typed
+    submitNumber(num);
   };
 
-  const handleNumberClick = async (num: number) => {
-    if (!session || drawing || addingManual) return;
+  const handleNumberClick = (num: number) => {
+    if (!session) return;
     if (session.status !== 'active') {
       alert('يرجى استئناف اللعب أولاً لسحب الأرقام');
       return;
     }
-
-    if (drawnNumbers.includes(num)) {
-      return;
-    }
-
-    setDrawing(true);
-    setError('');
-
-    try {
-      const res = await fetch('/api/sessions/current/draw', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ number: num })
-      });
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        processDrawResult(data);
-      } else {
-        setError(data.message || 'حدث خطأ أثناء سحب الرقم');
-      }
-    } catch (err) {
-      setError('تعذر الاتصال بالسيرفر لسحب الرقم');
-    } finally {
-      setDrawing(false);
-    }
+    submitNumber(num);
   };
 
   const handleToggleStatus = async () => {
@@ -438,6 +458,27 @@ export default function PlayPage() {
               >
                 {drawing ? 'جاري سحب رقم...' : 'سحب رقم عشوائي 🎲'}
               </button>
+
+              {/* Undo the last number — for a wrong call */}
+              <button
+                onClick={handleUndoLast}
+                disabled={undoing || drawnNumbers.length === 0}
+                className="mt-2 w-full flex items-center justify-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-amber-400 disabled:opacity-35 disabled:cursor-not-allowed font-black py-2.5 px-4 rounded-xl text-xs transition-all active:scale-[0.98] cursor-pointer"
+                style={{ fontFamily: 'Cairo, sans-serif' }}
+              >
+                <Undo2 size={14} />
+                {undoing
+                  ? 'جاري الإلغاء...'
+                  : latestDraw
+                  ? `إلغاء آخر رقم (${latestDraw})`
+                  : 'إلغاء آخر رقم'}
+              </button>
+
+              {pendingCount > 0 && (
+                <span className="mt-2 text-[10px] text-slate-500 font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                  جاري الحفظ… ({pendingCount})
+                </span>
+              )}
             </div>
 
             {/* Manual Draw Input Form */}
@@ -455,16 +496,16 @@ export default function PlayPage() {
                   onChange={(e) => setManualNumber(e.target.value)}
                   placeholder="رقم (1-90)"
                   className="w-full px-3 py-2 text-sm rounded-xl border border-slate-800 bg-slate-950 text-slate-100 outline-none focus:border-emerald-500 transition-colors"
-                  disabled={addingManual || session.status !== 'active'}
+                  disabled={session.status !== 'active'}
                   required
                 />
                 <button
                   type="submit"
                   className="px-5 py-2 text-xs font-black bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-xl transition-all active:scale-95 cursor-pointer flex-shrink-0"
-                  disabled={addingManual || session.status !== 'active'}
+                  disabled={session.status !== 'active'}
                   style={{ fontFamily: 'Cairo, sans-serif' }}
                 >
-                  {addingManual ? 'جاري...' : 'إضافة'}
+                  إضافة
                 </button>
               </form>
             </div>
@@ -576,7 +617,11 @@ export default function PlayPage() {
                       السيت: {formatSetNo(winner.setNo)} | كرت: {formatCardNo(winner.cardNo)}
                     </span>
                     <span className={`px-2 py-0.5 rounded-lg font-black text-[10px] ${
-                      winner.winType === 'البطاقة كاملة (دمبلة)' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                      winner.winType === 'البطاقة كاملة (دمبلة)'
+                        ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                        : winner.winType === 'الزوايا'
+                        ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
+                        : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                     }`} style={{ fontFamily: 'Cairo, sans-serif' }}>
                       {winner.winType}
                     </span>
@@ -629,14 +674,21 @@ export default function PlayPage() {
                         <span className="font-extrabold text-slate-200">
                           سيت {formatSetNo(winner.setNo)} | كرت {formatCardNo(winner.cardNo)}
                         </span>
-                        {winner.fullCard && (
-                          <span className="px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-lg text-[9px] font-black" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                            🏆 دمبلة
-                          </span>
-                        )}
+                        <div className="flex gap-1">
+                          {winner.corners && (
+                            <span className="px-2 py-0.5 bg-sky-500/10 border border-sky-500/20 text-sky-400 rounded-lg text-[9px] font-black" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                              ◤ الزوايا
+                            </span>
+                          )}
+                          {winner.fullCard && (
+                            <span className="px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-lg text-[9px] font-black" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                              🏆 دمبلة
+                            </span>
+                          )}
+                        </div>
                       </div>
                       
-                      <div className="grid grid-cols-3 gap-1 text-[10px] font-bold text-center">
+                      <div className="grid grid-cols-4 gap-1 text-[10px] font-bold text-center">
                         <div className={`p-1 rounded ${winner.row1 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-900 text-slate-600'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
                           السطر 1: {winner.row1 ? 'فائز' : '✖'}
                         </div>
@@ -645,6 +697,9 @@ export default function PlayPage() {
                         </div>
                         <div className={`p-1 rounded ${winner.row3 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-900 text-slate-600'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
                           السطر 3: {winner.row3 ? 'فائز' : '✖'}
+                        </div>
+                        <div className={`p-1 rounded ${winner.corners ? 'bg-sky-500/10 text-sky-400' : 'bg-slate-900 text-slate-600'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
+                          الزوايا: {winner.corners ? 'فائز' : '✖'}
                         </div>
                       </div>
                     </div>
