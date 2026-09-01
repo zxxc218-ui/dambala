@@ -13,6 +13,11 @@ export const metadata: Metadata = {
   description: 'نظام متكامل لإدارة وتشغيل لعبة الدمبلة العراقية وطباعة السيتات وفحص الفائزين',
 };
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -21,7 +26,7 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl" className={cairo.variable}>
       <body className="bg-slate-950 text-white min-h-screen overflow-x-hidden selection:bg-emerald-500 selection:text-slate-950">
-        <div className="w-full max-w-[430px] mx-auto min-h-screen bg-slate-900 shadow-2xl relative flex flex-col justify-between overflow-x-hidden border-x border-slate-800 pb-20">
+        <div className="app-shell w-full max-w-[430px] md:max-w-3xl lg:max-w-5xl xl:max-w-6xl mx-auto min-h-screen bg-slate-900 shadow-2xl relative flex flex-col justify-between overflow-x-hidden border-x border-slate-800 pb-20 md:pb-10">
           <main className="flex-1 w-full">{children}</main>
         </div>
       </body>

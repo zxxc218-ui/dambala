@@ -25,10 +25,18 @@
   --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.5), 0 4px 6px -2px rgba(0,0,0,0.5);
 }
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
+/*
+  This reset must live inside `base`. Tailwind v4 puts its utilities in the
+  `utilities` layer, and any UNLAYERED rule beats every layered rule regardless of
+  specificity — so an unlayered `* { margin: 0; padding: 0 }` silently cancelled
+  every m-* / p-* / mx-auto utility in the app.
+*/
+@layer base {
+  * {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+  }
 }
 
 html, body {
@@ -40,9 +48,25 @@ html, body {
   overflow-x: hidden;
 }
 
-/* Prevent auto zoom on iOS Safari */
-input, select, textarea {
-  font-size: 16px !important;
+/*
+  Responsive scale-up for larger screens.
+  The whole UI is authored mobile-first in rem-based Tailwind units, so raising the
+  root font-size scales text, padding, gaps and icons together — the layout keeps its
+  proportions instead of staying phone-sized on a desktop monitor.
+*/
+@media (min-width: 768px) {
+  html { font-size: 17px; }
+}
+
+@media (min-width: 1280px) {
+  html { font-size: 18px; }
+}
+
+/* Prevent auto zoom on iOS Safari (only needed on touch-sized screens) */
+@media (max-width: 767px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
 }
 
 /* Base Layout Classes */
@@ -256,6 +280,99 @@ input, select, textarea {
   border: 2px solid #f1c40f;
 }
 
+/* The page frame stays centred at every width */
+.app-shell {
+  margin-inline: auto;
+}
+
+/* ==========================================================================
+   Set sheet — an on-screen copy of the printed booklet page
+   6 cards laid out in two columns of three, exactly like the paper original.
+   ========================================================================== */
+
+.sheet {
+  background: #ffffff;
+  color: #111111;
+  border-radius: 8px;
+  padding: 18px 14px 20px;
+  box-shadow: var(--shadow-lg);
+}
+
+.sheet-cols {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  direction: ltr; /* keeps "الخطوط" on the left and "الزوايا" on the right, as printed */
+}
+
+@media (min-width: 640px) {
+  .sheet {
+    padding: 22px 20px 26px;
+  }
+  .sheet-cols {
+    grid-template-columns: 1fr 1fr;
+    gap: 26px;
+  }
+}
+
+.sheet-col-head {
+  text-align: center;
+  line-height: 1.35;
+  margin-bottom: 6px;
+  direction: rtl;
+}
+
+.sheet-col-head .title {
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.sheet-col-head .subtitle {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #333333;
+}
+
+.sheet-card + .sheet-card {
+  margin-top: 14px;
+}
+
+.sheet-card-nums {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  direction: ltr; /* set number on the left, card number on the right */
+  padding: 0 3px 2px;
+  font-weight: 800;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.sheet-grid {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  direction: ltr; /* columns run 1-9 → 80-90 left to right */
+  border: 1.6px solid #111111;
+}
+
+.sheet-grid td {
+  border: 1px solid #111111;
+  height: 30px;
+  padding: 0;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 640px) {
+  .sheet-grid td {
+    height: 34px;
+    font-size: 16px;
+  }
+}
+
 /* Animations */
 @keyframes popIn {
   0% { transform: scale(0.8); opacity: 0.8; }
@@ -270,6 +387,24 @@ input, select, textarea {
   }
   .navbar, .btn, .no-print {
     display: none !important;
+  }
+  /* The app shell is a dark phone-width frame on screen; printing needs a plain page */
+  .app-shell {
+    max-width: 100% !important;
+    background: white !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding-bottom: 0 !important;
+  }
+  .sheet {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    page-break-inside: avoid;
+  }
+  .sheet-cols {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10mm !important;
   }
   .container {
     max-width: 100% !important;

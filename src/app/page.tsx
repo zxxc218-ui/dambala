@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import Navbar from '@/components/Navbar';
-import { Play, Award, LayoutGrid, ShieldAlert, CheckCircle2, Tv, ChevronLeft } from 'lucide-react';
+import { Play, Award, LayoutGrid, ShieldAlert, CheckCircle2, Tv, ChevronLeft, ScrollText } from 'lucide-react';
 
 export const revalidate = 0; // Disable caching to always reflect DB state
 
@@ -34,8 +34,8 @@ export default async function Home() {
   return (
     <>
       <Navbar />
-      <div className="w-full px-5 py-6 flex flex-col gap-6 select-none pb-24">
-        
+      <div className="w-full px-5 md:px-8 py-6 md:py-10 flex flex-col gap-6 select-none pb-24 md:pb-12">
+
         {/* Hero / Header Section */}
         <div className="text-center py-4">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-500/10 text-emerald-400 mb-3 border border-emerald-500/20 shadow-lg shadow-emerald-500/5">
@@ -89,8 +89,8 @@ export default async function Home() {
         )}
 
         {/* Action Cards List */}
-        <div className="flex flex-col gap-3">
-          
+        <div className="flex flex-col gap-3 md:grid md:grid-cols-2 md:gap-4">
+
           {/* Card 1: Play */}
           <Link 
             href="/play" 
@@ -154,6 +154,23 @@ export default async function Home() {
               <h3 className="text-sm font-extrabold text-slate-100" style={{ fontFamily: 'Cairo, sans-serif' }}>إدارة السيتات والتعديل</h3>
               <p className="text-[11px] text-slate-400 mt-1 leading-normal" style={{ fontFamily: 'Cairo, sans-serif' }}>
                 تعديل وتحديث خلايا البطاقات الـ 150 يدوياً.
+              </p>
+            </div>
+            <ChevronLeft size={16} className="text-slate-500 group-hover:translate-x-[-2px] transition-transform" />
+          </Link>
+
+          {/* Card 5: Set sheet map */}
+          <Link
+            href="/sheet"
+            className="flex items-center gap-4 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 hover:border-slate-600 rounded-2xl p-4 transition-all duration-200 active:scale-[0.98] group"
+          >
+            <div className="w-12 h-12 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center border border-sky-500/20 group-hover:scale-105 transition-transform">
+              <ScrollText size={20} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-extrabold text-slate-100" style={{ fontFamily: 'Cairo, sans-serif' }}>خريطة السيت</h3>
+              <p className="text-[11px] text-slate-400 mt-1 leading-normal" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                عرض السيت بنفس شكل الورقة المطبوعة، 6 كروت بعمودين.
               </p>
             </div>
             <ChevronLeft size={16} className="text-slate-500 group-hover:translate-x-[-2px] transition-transform" />
