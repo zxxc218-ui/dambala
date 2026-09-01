@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { hasRole } from '@/lib/auth';
+import { getCardIndex, winsCompletedBy, WIN_LABELS } from '@/lib/cards';
 
 export async function POST(req: NextRequest) {
   try {
@@ -10,17 +11,25 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       );
     }
-    // 1. Fetch current active session from Supabase
+
+    // Read the request body and warm the card index while the session query runs.
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch {
+      // JSON body is optional (random draw)
+    }
+
+    const cardIndexPromise = getCardIndex();
+
+    // 1. Fetch current active session
     const { data: session, error: sessionErr } = await supabase
       .from('draw_sessions')
       .select(`
         id,
         name,
         status,
-        draw_numbers (
-          number,
-          draw_order
-        )
+        draw_numbers ( number, draw_order )
       `)
       .eq('status', 'active')
       .maybeSingle();
@@ -28,7 +37,6 @@ export async function POST(req: NextRequest) {
     if (sessionErr) throw sessionErr;
 
     if (!session) {
-      // Check if paused session exists instead
       const { data: pausedSession } = await supabase
         .from('draw_sessions')
         .select('id')
@@ -48,19 +56,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const drawnNumbers = (session.draw_numbers || []).map((n: any) => n.number);
-    const previouslyDrawnSet = new Set(drawnNumbers);
+    const previousDraws = session.draw_numbers || [];
+    const drawnBefore = new Set<number>(previousDraws.map((n: any) => n.number));
 
+    // 2. Pick the number — manual if one was sent, otherwise random from what's left
     let drawnNumber: number;
-
-    // 2. Read manual number
-    let body: any = {};
-    try {
-      body = await req.json();
-    } catch (e) {
-      // JSON body optional
-    }
-
     const manualNumberRaw = body.number;
 
     if (manualNumberRaw !== undefined && manualNumberRaw !== null && manualNumberRaw !== '') {
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      if (previouslyDrawnSet.has(manualNum)) {
+      if (drawnBefore.has(manualNum)) {
         return NextResponse.json(
           { success: false, message: 'هذا الرقم مسحوب مسبقاً' },
           { status: 400 }
@@ -81,84 +81,41 @@ export async function POST(req: NextRequest) {
 
       drawnNumber = manualNum;
     } else {
-      // Draw random
-      if (drawnNumbers.length >= 90) {
+      if (drawnBefore.size >= 90) {
         return NextResponse.json({
           success: false,
-          message: 'تم سحب جميع الأرقام الـ 90 بالفعل!'
+          message: 'تم سحب جميع الأرقام الـ 90 بالفعل!',
         });
       }
 
       const pool: number[] = [];
       for (let i = 1; i <= 90; i++) {
-        if (!previouslyDrawnSet.has(i)) {
-          pool.push(i);
-        }
+        if (!drawnBefore.has(i)) pool.push(i);
       }
-
-      const randomIndex = Math.floor(Math.random() * pool.length);
-      drawnNumber = pool[randomIndex];
+      drawnNumber = pool[Math.floor(Math.random() * pool.length)];
     }
 
-    const nextOrder = (session.draw_numbers || []).length + 1;
+    const nextOrder = previousDraws.length + 1;
 
-    // 3. Save to database in Supabase
+    // 3. Save the draw
     const { error: insertErr } = await supabase
       .from('draw_numbers')
-      .insert({
-        session_id: session.id,
-        number: drawnNumber,
-        draw_order: nextOrder
-      });
+      .insert({ session_id: session.id, number: drawnNumber, draw_order: nextOrder });
 
     if (insertErr) throw insertErr;
 
-    // 4. SCAN FOR NEW WINNERS
+    // 4. Scan for new winners.
+    //    Only cards that actually contain the new number can have just won, so we
+    //    look at those (~150) instead of re-scanning all 900 cards, and we read
+    //    them from the cached index instead of hitting Supabase again.
+    const index = await cardIndexPromise;
+    const candidates = index.byNumber.get(drawnNumber) || [];
+
     const newWinners: { setNo: number; cardNo: number; winType: string }[] = [];
-
-    // Fetch all cards and their rows from Supabase
-    const { data: dbCards, error: cardsErr } = await supabase
-      .from('cards')
-      .select(`
-        id,
-        card_no,
-        sets (
-          set_no
-        ),
-        card_rows (
-          row_no,
-          c1, c2, c3, c4, c5, c6, c7, c8, c9
-        )
-      `);
-
-    if (cardsErr) throw cardsErr;
-
-    for (const card of (dbCards || [])) {
-      // Resolve set number dynamically depending on structure returned by Supabase
-      const setNoVal = (card as any).sets?.set_no ?? (card as any).sets?.[0]?.set_no ?? 0;
-      const rows = card.card_rows || [];
-
-      // Check Row 1
-      const r1 = rows.find((r: any) => r.row_no === 1);
-      if (r1 && checkRowWin(r1, drawnNumber, previouslyDrawnSet)) {
-        newWinners.push({ setNo: setNoVal, cardNo: card.card_no, winType: 'الخط الأول' });
-      }
-
-      // Check Row 2
-      const r2 = rows.find((r: any) => r.row_no === 2);
-      if (r2 && checkRowWin(r2, drawnNumber, previouslyDrawnSet)) {
-        newWinners.push({ setNo: setNoVal, cardNo: card.card_no, winType: 'الخط الثاني' });
-      }
-
-      // Check Row 3
-      const r3 = rows.find((r: any) => r.row_no === 3);
-      if (r3 && checkRowWin(r3, drawnNumber, previouslyDrawnSet)) {
-        newWinners.push({ setNo: setNoVal, cardNo: card.card_no, winType: 'الخط الثالث' });
-      }
-
-      // Check Full Card
-      if (checkCardWin(rows, drawnNumber, previouslyDrawnSet)) {
-        newWinners.push({ setNo: setNoVal, cardNo: card.card_no, winType: 'البطاقة كاملة (دمبلة)' });
+    for (const cardIdx of candidates) {
+      const card = index.cards[cardIdx];
+      for (const win of winsCompletedBy(card, drawnNumber, drawnBefore)) {
+        newWinners.push({ setNo: card.setNo, cardNo: card.cardNo, winType: WIN_LABELS[win] });
       }
     }
 
@@ -167,7 +124,7 @@ export async function POST(req: NextRequest) {
       number: drawnNumber,
       order: nextOrder,
       sessionName: session.name,
-      newWinners
+      newWinners,
     });
   } catch (error: any) {
     return NextResponse.json(
@@ -177,21 +134,67 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function checkRowWin(row: any, newNum: number, drawnSet: Set<number>): boolean {
-  const vals = [row.c1, row.c2, row.c3, row.c4, row.c5, row.c6, row.c7, row.c8, row.c9].filter(v => v !== null) as number[];
-  if (vals.length === 0) return false;
-  if (!vals.includes(newNum)) return false;
-  return vals.every(v => v === newNum || drawnSet.has(v));
-}
+/**
+ * Undo the most recent draw — for when the caller types the wrong number.
+ * Removes only the last one, so it can be pressed repeatedly to walk back.
+ */
+export async function DELETE(req: NextRequest) {
+  try {
+    if (!hasRole(req, ['admin', 'caller'])) {
+      return NextResponse.json(
+        { success: false, message: 'غير مصرح لك بالقيام بهذا الإجراء' },
+        { status: 403 }
+      );
+    }
 
-function checkCardWin(cardRows: any[], newNum: number, drawnSet: Set<number>): boolean {
-  const vals: number[] = [];
-  cardRows.forEach(row => {
-    [row.c1, row.c2, row.c3, row.c4, row.c5, row.c6, row.c7, row.c8, row.c9].forEach(v => {
-      if (v !== null) vals.push(v as number);
+    const { data: session, error: sessionErr } = await supabase
+      .from('draw_sessions')
+      .select('id, status')
+      .in('status', ['active', 'paused'])
+      .maybeSingle();
+
+    if (sessionErr) throw sessionErr;
+
+    if (!session) {
+      return NextResponse.json(
+        { success: false, message: 'لا توجد جلسة نشطة حالياً' },
+        { status: 400 }
+      );
+    }
+
+    const { data: last, error: lastErr } = await supabase
+      .from('draw_numbers')
+      .select('id, number, draw_order')
+      .eq('session_id', session.id)
+      .order('draw_order', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (lastErr) throw lastErr;
+
+    if (!last) {
+      return NextResponse.json(
+        { success: false, message: 'لا يوجد رقم مسحوب لإلغائه' },
+        { status: 400 }
+      );
+    }
+
+    const { error: deleteErr } = await supabase
+      .from('draw_numbers')
+      .delete()
+      .eq('id', last.id);
+
+    if (deleteErr) throw deleteErr;
+
+    return NextResponse.json({
+      success: true,
+      removedNumber: last.number,
+      message: `تم إلغاء الرقم ${last.number}`,
     });
-  });
-  if (vals.length === 0) return false;
-  if (!vals.includes(newNum)) return false;
-  return vals.every(v => v === newNum || drawnSet.has(v));
+  } catch (error: any) {
+    return NextResponse.json(
+      { success: false, message: 'حدث خطأ أثناء إلغاء الرقم: ' + error.message },
+      { status: 500 }
+    );
+  }
 }
