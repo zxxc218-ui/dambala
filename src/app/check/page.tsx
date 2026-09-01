@@ -193,7 +193,7 @@ export default function CheckWinnerPage() {
         </div>
 
         {/* Search Inputs Card */}
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-md flex flex-col gap-4">
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-md flex flex-col gap-4 w-full md:max-w-xl md:mx-auto">
           <h3 className="text-xs font-black text-slate-200" style={{ fontFamily: 'Cairo, sans-serif' }}>بيانات بطاقة التدقيق</h3>
 
           <form onSubmit={handleSearchCard} className="flex flex-col gap-4 text-right">
