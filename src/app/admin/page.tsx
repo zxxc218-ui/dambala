@@ -498,7 +498,7 @@ export default function SetsAdminPage() {
                 )}
 
                 {/* 3x9 Grid Inputs */}
-                <div className="bg-slate-950 border border-slate-850 p-2.5 rounded-xl flex flex-col gap-1.5">
+                <div className="bg-slate-950 border border-slate-850 p-2.5 rounded-xl flex flex-col gap-1.5 w-full md:max-w-xl md:mx-auto">
                   {activeCard.rows.map((row) => (
                     <div key={row.rowNo} className="grid grid-cols-9 gap-1.5" style={{ direction: 'ltr' }}>
                       {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((cIdx) => {
