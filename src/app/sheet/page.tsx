@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Navbar from '@/components/Navbar';
 import { ChevronLeft, ChevronRight, Loader2, Printer, ScrollText, AlertTriangle } from 'lucide-react';
 
@@ -78,12 +78,18 @@ export default function SheetPage() {
     }
   }, []);
 
+  // Guards against an earlier, slower response overwriting a newer one when the
+  // user steps through sets quickly (or when ?set= changes the number on mount).
+  const requestId = useRef(0);
+
   const loadSet = useCallback(async (no: number) => {
+    const myRequest = ++requestId.current;
     setLoading(true);
     setError('');
     try {
       const res = await fetch(`/api/sets/${no}`);
       const data = await res.json();
+      if (myRequest !== requestId.current) return; // a newer request has taken over
       if (res.ok && data.success) {
         setSetDetails(data.set);
       } else {
@@ -91,10 +97,11 @@ export default function SheetPage() {
         setError(data.message || `السيت رقم ${no} غير موجود في قاعدة البيانات`);
       }
     } catch {
+      if (myRequest !== requestId.current) return;
       setSetDetails(null);
       setError('تعذر الاتصال بالسيرفر لجلب السيت');
     } finally {
-      setLoading(false);
+      if (myRequest === requestId.current) setLoading(false);
     }
   }, []);
 
