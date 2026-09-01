@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { LogOut, Award, Play, LayoutGrid, Tv, User, Home } from 'lucide-react';
+import { LogOut, Award, Play, LayoutGrid, Tv, User, Home, ScrollText } from 'lucide-react';
 
 interface UserSession {
   username: string;
@@ -102,6 +102,12 @@ export default function Navbar() {
       roles: ['admin', 'checker'],
     },
     {
+      name: 'الخريطة',
+      href: '/sheet',
+      icon: ScrollText,
+      roles: ['admin', 'caller', 'checker', 'viewer'],
+    },
+    {
       name: 'العرض',
       href: '/display',
       icon: Tv,
@@ -114,16 +120,45 @@ export default function Navbar() {
 
   return (
     <>
-      {/* Top Header Bar */}
-      <header className="w-full h-14 bg-slate-900 border-b border-slate-800 flex items-center justify-center px-4 sticky top-0 z-40 select-none">
-        <Link href="/" className="flex items-center gap-2 text-emerald-500 font-extrabold text-lg transition-transform active:scale-95">
+      {/*
+        Top Header Bar.
+        On phones it is just the logo (navigation lives in the bottom bar).
+        From md up the tabs move up here, where a mouse expects them.
+      */}
+      <header className="w-full h-14 md:h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-center md:justify-between gap-4 px-4 md:px-6 sticky top-0 z-40 select-none">
+        <Link
+          href="/"
+          className="flex items-center gap-2 text-emerald-500 font-extrabold text-lg transition-transform active:scale-95 shrink-0"
+        >
           <span>🎯</span>
           <span>الدمبلة العراقية</span>
         </Link>
+
+        <nav className="hidden md:flex items-center gap-1">
+          {visibleTabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = pathname === tab.href;
+            return (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                  isActive
+                    ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
+                    : 'text-slate-400 border border-transparent hover:text-slate-100 hover:bg-slate-800'
+                }`}
+                style={{ fontFamily: 'Cairo, sans-serif' }}
+              >
+                <Icon size={16} className={isActive ? 'stroke-[2.5px]' : 'stroke-[2px]'} />
+                <span>{tab.name}</span>
+              </Link>
+            );
+          })}
+        </nav>
       </header>
 
-      {/* Fixed Bottom Navigation Bar (Centered on desktop inside max-w-[430px]) */}
-      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] h-16 bg-slate-950/95 border-t border-slate-800 flex items-center justify-around z-50 px-2 pb-safe select-none backdrop-blur-md">
+      {/* Fixed Bottom Navigation Bar — phones only */}
+      <nav className="md:hidden fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] h-16 bg-slate-950/95 border-t border-slate-800 flex items-center justify-around z-50 px-2 pb-safe select-none backdrop-blur-md">
         {visibleTabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = pathname === tab.href;
