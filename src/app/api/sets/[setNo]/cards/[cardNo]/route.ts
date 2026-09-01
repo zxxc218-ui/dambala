@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { isAdmin } from '@/lib/auth';
 import { validateTambolaData } from '@/lib/validation';
+import { invalidateCardIndex } from '@/lib/cards';
 
 function validateCardLayout(rows: any[], cardNo: number, setNo: number) {
   const errors: string[] = [];
@@ -212,6 +213,8 @@ export async function PUT(
     });
 
     const validationReport = validateTambolaData(rawRowsForValidation);
+
+    invalidateCardIndex();
 
     return NextResponse.json({
       success: true,
