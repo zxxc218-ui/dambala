@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { hasRole } from '@/lib/auth';
+import { getUserSession } from '@/lib/auth';
+import { clearSessionCache } from '@/lib/sessions';
 
 // GET: Fetch all sessions
 export async function GET(req: NextRequest) {
   try {
-    const { data: dbSessions, error } = await supabase
+    const user = getUserSession(req);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: 'يرجى تسجيل الدخول أولاً', needsLogin: true },
+        { status: 401 }
+      );
+    }
+
+    let listQuery = supabase
       .from('draw_sessions')
       .select(`
         id,
@@ -16,6 +25,11 @@ export async function GET(req: NextRequest) {
         draw_numbers (count)
       `)
       .order('started_at', { ascending: false });
+
+    listQuery =
+      user.clubId === null ? listQuery.is('club_id', null) : listQuery.eq('club_id', user.clubId);
+
+    const { data: dbSessions, error } = await listQuery;
 
     if (error) throw error;
 
@@ -43,24 +57,28 @@ export async function GET(req: NextRequest) {
 // POST: Start a new game session
 export async function POST(req: NextRequest) {
   try {
-    if (!hasRole(req, ['admin', 'caller'])) {
+    const user = getUserSession(req);
+    if (!user) {
       return NextResponse.json(
-        { success: false, message: 'غير مصرح لك بالقيام بهذا الإجراء' },
-        { status: 403 }
+        { success: false, message: 'يرجى تسجيل الدخول أولاً', needsLogin: true },
+        { status: 401 }
       );
     }
 
     const { name } = await req.json();
     const sessionName = name || `جلسة سحب دمبلة - ${new Date().toLocaleString('ar-EG')}`;
 
-    // 1. Finish all other active or paused sessions in Supabase
-    const { error: updateErr } = await supabase
+    // 1. Finish only THIS club's earlier sessions — another club's live game
+    //    must not be ended by someone else starting theirs.
+    let finishQuery = supabase
       .from('draw_sessions')
-      .update({
-        status: 'finished',
-        ended_at: new Date().toISOString()
-      })
+      .update({ status: 'finished', ended_at: new Date().toISOString() })
       .in('status', ['active', 'paused']);
+
+    finishQuery =
+      user.clubId === null ? finishQuery.is('club_id', null) : finishQuery.eq('club_id', user.clubId);
+
+    const { error: updateErr } = await finishQuery;
 
     if (updateErr) throw updateErr;
 
@@ -69,12 +87,15 @@ export async function POST(req: NextRequest) {
       .from('draw_sessions')
       .insert({
         name: sessionName,
-        status: 'active'
+        status: 'active',
+        club_id: user.clubId
       })
       .select()
       .single();
 
     if (createErr || !newSession) throw createErr || new Error('فشل بدء الجلسة في Supabase');
+
+    clearSessionCache(user);
 
     // `numbers` must be present (and empty) — the play screen reads it straight
     // away, and leaving it off made the page crash the moment a session started.
