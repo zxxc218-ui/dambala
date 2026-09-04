@@ -331,7 +331,7 @@ export default function PlayPage() {
   const formatCardNo = (no: number) => String(no).padStart(2, '0');
 
   return (
-    <ProtectedRoute allowedRoles={['admin', 'caller']}>
+    <ProtectedRoute allowedRoles={['super_admin', 'club']}>
       <Navbar />
       <div className="w-full px-4 py-5 flex flex-col gap-5 select-none pb-24">
         
