@@ -34,6 +34,17 @@ async function superAdminExists() {
  * Supabase reports a missing table two different ways depending on whether the
  * request reached Postgres or stopped at PostgREST's schema cache.
  */
+/** Postgres refuses the write because row-level security has no matching policy. */
+function isRlsBlocked(error: any): boolean {
+  return error?.code === '42501' || /row-level security/i.test(error?.message || '');
+}
+
+const SERVICE_KEY_HINT =
+  'جدول المستخدمين مقفول بـ Row Level Security — وهذا مقصود، حتى ما يقدر أحد يقرا كلمات السر. ' +
+  'لتشغيله أضف المفتاح SUPABASE_SERVICE_ROLE_KEY في Vercel: ' +
+  'Supabase → Project Settings → API Keys → انسخ مفتاح service_role، ' +
+  'وبعدها Vercel → dambala → Settings → Environment Variables → أضفه باسم SUPABASE_SERVICE_ROLE_KEY ثم أعد النشر (Redeploy).';
+
 function isTableMissing(error: any): boolean {
   return (
     error?.code === '42P01' ||
@@ -51,8 +62,11 @@ export async function GET() {
       success: false,
       tableMissing,
       hasServiceRole,
+      needsServiceRole: isRlsBlocked(check.error),
       message: tableMissing
         ? 'جدول المستخدمين غير موجود. شغّل سكربت db/users.sql في Supabase أولاً.'
+        : isRlsBlocked(check.error)
+        ? SERVICE_KEY_HINT
         : 'تعذر قراءة جدول المستخدمين: ' + (check.error as any).message,
     });
   }
@@ -122,6 +136,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { success: false, message: 'اسم المستخدم محجوز، اختر اسماً آخر' },
         { status: 409 }
+      );
+    }
+    if (isRlsBlocked(error)) {
+      return NextResponse.json(
+        { success: false, code: 'needs_service_role', message: SERVICE_KEY_HINT },
+        { status: 500 }
       );
     }
     return NextResponse.json(
