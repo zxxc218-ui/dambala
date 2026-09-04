@@ -12,24 +12,31 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // If already logged in, redirect them to their home page
+  // If a valid session already exists, go straight in. Ask the server rather
+  // than trusting localStorage, which any visitor can edit.
   useEffect(() => {
-    const userStr = localStorage.getItem('tambola_user');
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr);
-        redirectByRole(user.role);
-      } catch {
-        localStorage.removeItem('tambola_user');
-      }
-    }
+    fetch('/api/auth/me')
+      .then(r => r.json())
+      .then(data => {
+        if (data.authenticated && data.user) {
+          localStorage.setItem('tambola_user', JSON.stringify(data.user));
+          redirectByRole(data.user.role);
+        } else {
+          localStorage.removeItem('tambola_user');
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
   const redirectByRole = (role: string) => {
-    if (role === 'admin') router.push('/admin');
-    else if (role === 'caller') router.push('/play');
-    else if (role === 'checker') router.push('/check');
-    else if (role === 'viewer') router.push('/display');
+    // honour ?next= when the proxy bounced them here from a specific page
+    const next = new URLSearchParams(window.location.search).get('next');
+    if (next && next.startsWith('/') && !next.startsWith('//')) {
+      router.push(next);
+      return;
+    }
+    router.push(role === 'super_admin' ? '/admin/users' : '/play');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
