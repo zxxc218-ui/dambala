@@ -35,6 +35,7 @@ export default function SetsAdminPage() {
   const [dbSets, setDbSets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [selectedSetNo, setSelectedSetNo] = useState<number>(1);
   const [activeCardNo, setActiveCardNo] = useState<number>(1);
   const [isSchemaMissing, setIsSchemaMissing] = useState(false);
@@ -66,9 +67,12 @@ export default function SetsAdminPage() {
     try {
       const res = await fetch('/api/auth/me');
       const data = await res.json();
-      setIsAdmin(data.authenticated && data.user?.role === 'admin');
+      // Clubs may edit cards too; only wiping everything is super-admin only.
+      setIsAdmin(data.authenticated && (data.user?.role === 'super_admin' || data.user?.role === 'club'));
+      setIsSuperAdmin(data.authenticated && data.user?.role === 'super_admin');
     } catch (err) {
       setIsAdmin(false);
+      setIsSuperAdmin(false);
     }
   };
 
@@ -316,7 +320,7 @@ export default function SetsAdminPage() {
   const activeCard = setDetails?.cards.find(c => c.cardNo === activeCardNo);
 
   return (
-    <ProtectedRoute allowedRoles={['admin']}>
+    <ProtectedRoute allowedRoles={['super_admin', 'club']}>
       <Navbar />
       <div className="w-full px-4 py-5 flex flex-col gap-5 select-none pb-24">
         
@@ -327,11 +331,11 @@ export default function SetsAdminPage() {
             <h1 className="text-sm font-black" style={{ fontFamily: 'Cairo, sans-serif' }}>إدارة وتعديل السيتات</h1>
           </div>
           <div className="flex gap-2">
-            <Link href="/admin/import" className="flex items-center gap-1 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 font-bold text-[10px] py-1.5 px-3 rounded-lg transition-all">
+            {isSuperAdmin && <Link href="/admin/import" className="flex items-center gap-1 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 font-bold text-[10px] py-1.5 px-3 rounded-lg transition-all">
               <Upload size={12} />
               <span>استيراد</span>
-            </Link>
-            {dbSets.length > 0 && (
+            </Link>}
+            {isSuperAdmin && dbSets.length > 0 && (
               <button 
                 onClick={handleDeleteAll} 
                 disabled={deletingAll}
