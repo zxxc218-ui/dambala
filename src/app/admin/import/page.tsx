@@ -141,7 +141,7 @@ export default function ImportPage() {
   };
 
   return (
-    <ProtectedRoute allowedRoles={['admin']}>
+    <ProtectedRoute allowedRoles={['super_admin']}>
       <Navbar />
       <div className="container" style={{ maxWidth: '900px', paddingBottom: '60px' }}>
         
