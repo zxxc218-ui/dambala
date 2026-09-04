@@ -76,12 +76,15 @@ export async function POST(req: NextRequest) {
 
     if (createErr || !newSession) throw createErr || new Error('فشل بدء الجلسة في Supabase');
 
+    // `numbers` must be present (and empty) — the play screen reads it straight
+    // away, and leaving it off made the page crash the moment a session started.
     const formattedSession = {
       id: newSession.id,
       name: newSession.name,
       startedAt: newSession.started_at,
       endedAt: newSession.ended_at,
-      status: newSession.status
+      status: newSession.status,
+      numbers: [] as { number: number; drawOrder: number }[]
     };
 
     return NextResponse.json({
