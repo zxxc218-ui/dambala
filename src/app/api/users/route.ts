@@ -82,6 +82,16 @@ export async function POST(req: NextRequest) {
         { status: 409 }
       );
     }
+    if (error?.code === '42501' || /row-level security/i.test(error?.message || '')) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            'قاعدة البيانات ترفض الكتابة على جدول المستخدمين. أضف المفتاح SUPABASE_SERVICE_ROLE_KEY في Vercel ثم أعد النشر.',
+        },
+        { status: 500 }
+      );
+    }
     return NextResponse.json(
       { success: false, message: 'تعذر إنشاء الحساب: ' + error.message },
       { status: 500 }
