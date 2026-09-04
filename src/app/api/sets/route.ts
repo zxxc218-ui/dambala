@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { isAdmin } from '@/lib/auth';
+import { isSuperAdmin } from '@/lib/auth';
 import { validateTambolaData } from '@/lib/validation';
 import { invalidateCardIndex } from '@/lib/cards';
 
@@ -82,9 +82,11 @@ export async function GET(req: NextRequest) {
 // POST: Bulk import validated sets (Admin Only)
 export async function POST(req: NextRequest) {
   try {
-    if (!isAdmin(req)) {
+    // Wiping and re-importing every set affects all clubs at once, so it stays
+    // with the super admin even though clubs may edit individual cards.
+    if (!isSuperAdmin(req)) {
       return NextResponse.json(
-        { success: false, message: 'غير مصرح لك بالقيام بهذا الإجراء' },
+        { success: false, message: 'الاستيراد والحذف الشامل للسوبر أدمن فقط' },
         { status: 403 }
       );
     }
@@ -202,9 +204,11 @@ export async function POST(req: NextRequest) {
 // DELETE: Clear all sets (Admin Only)
 export async function DELETE(req: NextRequest) {
   try {
-    if (!isAdmin(req)) {
+    // Wiping and re-importing every set affects all clubs at once, so it stays
+    // with the super admin even though clubs may edit individual cards.
+    if (!isSuperAdmin(req)) {
       return NextResponse.json(
-        { success: false, message: 'غير مصرح لك بالقيام بهذا الإجراء' },
+        { success: false, message: 'الاستيراد والحذف الشامل للسوبر أدمن فقط' },
         { status: 403 }
       );
     }
