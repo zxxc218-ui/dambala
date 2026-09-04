@@ -95,7 +95,13 @@ export async function POST(req: NextRequest) {
       drawnNumber = pool[Math.floor(Math.random() * pool.length)];
     }
 
-    const nextOrder = previousDraws.length + 1;
+    // Derive the order from the highest one already stored rather than the row
+    // count, so undoing a number and drawing again cannot reuse an order.
+    const highestOrder = previousDraws.reduce(
+      (max: number, n: any) => (n.draw_order > max ? n.draw_order : max),
+      0
+    );
+    const nextOrder = highestOrder + 1;
 
     // 3. Save the draw
     const { error: insertErr } = await supabase
@@ -162,10 +168,27 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const { data: last, error: lastErr } = await supabase
+    // The caller may name the number to remove. That is what the play screen
+    // does, so the row that comes off is exactly the one shown on the button —
+    // relying on "highest draw_order" alone can pick the wrong row when two
+    // numbers were entered in quick succession and share an order.
+    let requestedNumber: number | null = null;
+    try {
+      const body = await req.json();
+      const parsed = parseInt(body?.number, 10);
+      if (!isNaN(parsed)) requestedNumber = parsed;
+    } catch {
+      // no body — fall back to removing the most recent row
+    }
+
+    let query = supabase
       .from('draw_numbers')
       .select('id, number, draw_order')
-      .eq('session_id', session.id)
+      .eq('session_id', session.id);
+
+    if (requestedNumber !== null) query = query.eq('number', requestedNumber);
+
+    const { data: last, error: lastErr } = await query
       .order('draw_order', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -174,7 +197,13 @@ export async function DELETE(req: NextRequest) {
 
     if (!last) {
       return NextResponse.json(
-        { success: false, message: 'لا يوجد رقم مسحوب لإلغائه' },
+        {
+          success: false,
+          message:
+            requestedNumber !== null
+              ? `الرقم ${requestedNumber} غير موجود ضمن الأرقام المسحوبة`
+              : 'لا يوجد رقم مسحوب لإلغائه',
+        },
         { status: 400 }
       );
     }
