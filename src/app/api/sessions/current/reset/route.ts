@@ -1,21 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { hasRole } from '@/lib/auth';
+import { getUserSession } from '@/lib/auth';
+import { getActiveSession, clearSessionCache } from '@/lib/sessions';
 
 export async function POST(req: NextRequest) {
   try {
-    if (!hasRole(req, ['admin', 'caller'])) {
+    const user = getUserSession(req);
+    if (!user) {
       return NextResponse.json(
-        { success: false, message: 'غير مصرح لك بالقيام بهذا الإجراء' },
-        { status: 403 }
+        { success: false, message: 'يرجى تسجيل الدخول أولاً', needsLogin: true },
+        { status: 401 }
       );
     }
-    // Find current active or paused session in Supabase
-    const { data: currentSession, error: fetchErr } = await supabase
-      .from('draw_sessions')
-      .select('id')
-      .in('status', ['active', 'paused'])
-      .maybeSingle();
+
+    const { session: currentSession, error: fetchErr } = await getActiveSession(user);
 
     if (fetchErr) throw fetchErr;
 
@@ -71,6 +69,8 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (updateErr || !resetSession) throw updateErr || new Error('فشل إعادة ضبط الجلسة في Supabase');
+
+    clearSessionCache(user);
 
     const formattedSession = {
       id: resetSession.id,
