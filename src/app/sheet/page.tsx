@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Navbar from '@/components/Navbar';
+import ProtectedRoute from '@/components/ProtectedRoute';
 import { ChevronLeft, ChevronRight, Loader2, Printer, ScrollText, AlertTriangle } from 'lucide-react';
 
 interface CardRow {
@@ -128,7 +129,7 @@ export default function SheetPage() {
   const rightColumn = cards.filter((c) => c.cardNo > 3);
 
   return (
-    <>
+    <ProtectedRoute allowedRoles={['super_admin', 'club']}>
       <div className="no-print">
         <Navbar />
       </div>
@@ -242,6 +243,6 @@ export default function SheetPage() {
           </p>
         )}
       </div>
-    </>
+    </ProtectedRoute>
   );
 }
