@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { isAdmin } from '@/lib/auth';
+import { isSignedIn } from '@/lib/auth';
 import { validateTambolaData } from '@/lib/validation';
 import { invalidateCardIndex } from '@/lib/cards';
 
@@ -139,10 +139,11 @@ export async function PUT(
   { params }: { params: Promise<{ setNo: string }> }
 ) {
   try {
-    if (!isAdmin(req)) {
+    // Sets are shared and any signed-in club may correct a card.
+    if (!isSignedIn(req)) {
       return NextResponse.json(
-        { success: false, message: 'غير مصرح لك بالقيام بهذا الإجراء' },
-        { status: 403 }
+        { success: false, message: 'يرجى تسجيل الدخول أولاً', needsLogin: true },
+        { status: 401 }
       );
     }
 
