@@ -140,9 +140,7 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-8 border-t border-slate-800/80 pt-5 text-center text-[10px] text-slate-500 leading-relaxed" style={{ fontFamily: 'Cairo, sans-serif' }}>
-            الحسابات الافتراضية للتجربة (المستخدم / كلمة المرور):<br/>
-            <strong className="text-slate-400">admin / admin123</strong> | <strong className="text-slate-400">caller / caller123</strong><br/>
-            <strong className="text-slate-400">checker / checker123</strong> | <strong className="text-slate-400">viewer / viewer123</strong>
+            حساب النادي يصدره مدير النظام. إذا نسيت كلمة السر راجعه ليعيد ضبطها.
           </div>
 
         </div>
