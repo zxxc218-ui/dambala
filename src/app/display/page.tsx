@@ -44,7 +44,7 @@ export default function DisplayPage() {
   const lastTen = [...drawnList].reverse().slice(1, 11);
 
   return (
-    <ProtectedRoute allowedRoles={['admin', 'caller', 'viewer']}>
+    <ProtectedRoute allowedRoles={['super_admin', 'club']}>
       <div className="min-h-screen bg-slate-950 text-white flex flex-col justify-between p-5 select-none overflow-hidden font-sans">
         
         {/* Header bar */}
