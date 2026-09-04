@@ -26,13 +26,38 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Delete all drawn numbers for this session in Supabase
+    // 1. Delete all drawn numbers for this session in Supabase.
+    //    Count the rows before and after: a blocked delete returns no error, so
+    //    without this check a reset that removed nothing still reported success.
+    const { count: beforeCount } = await supabase
+      .from('draw_numbers')
+      .select('id', { count: 'exact', head: true })
+      .eq('session_id', currentSession.id);
+
     const { error: deleteErr } = await supabase
       .from('draw_numbers')
       .delete()
       .eq('session_id', currentSession.id);
 
     if (deleteErr) throw deleteErr;
+
+    const { count: afterCount } = await supabase
+      .from('draw_numbers')
+      .select('id', { count: 'exact', head: true })
+      .eq('session_id', currentSession.id);
+
+    if ((beforeCount || 0) > 0 && (afterCount || 0) > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            'لم يتم مسح الأرقام من قاعدة البيانات. ' +
+            'قاعدة البيانات ترفض الحذف — يرجى السماح بالحذف (DELETE) لجدول draw_numbers في إعدادات Supabase.',
+          code: 'delete_blocked',
+        },
+        { status: 500 }
+      );
+    }
 
     // 2. Reset session metadata in Supabase
     const { data: resetSession, error: updateErr } = await supabase
