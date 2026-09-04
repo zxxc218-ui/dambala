@@ -1,65 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { hasRole } from '@/lib/auth';
+import { getUserSession } from '@/lib/auth';
+import { getActiveSession } from '@/lib/sessions';
 import { getCardIndex, winsCompletedBy, WIN_LABELS } from '@/lib/cards';
+
+function unauthorized() {
+  return NextResponse.json(
+    { success: false, message: 'يرجى تسجيل الدخول أولاً', needsLogin: true },
+    { status: 401 }
+  );
+}
 
 export async function POST(req: NextRequest) {
   try {
-    if (!hasRole(req, ['admin', 'caller'])) {
-      return NextResponse.json(
-        { success: false, message: 'غير مصرح لك بالقيام بهذا الإجراء' },
-        { status: 403 }
-      );
-    }
+    const user = getUserSession(req);
+    if (!user) return unauthorized();
 
-    // Read the request body and warm the card index while the session query runs.
+    // Read the body and warm the card index while the session lookup runs.
     let body: any = {};
     try {
       body = await req.json();
     } catch {
-      // JSON body is optional (random draw)
+      // no body — random draw
     }
 
     const cardIndexPromise = getCardIndex();
 
-    // 1. Fetch current active session
-    const { data: session, error: sessionErr } = await supabase
-      .from('draw_sessions')
-      .select(`
-        id,
-        name,
-        status,
-        draw_numbers ( number, draw_order )
-      `)
-      .eq('status', 'active')
-      .maybeSingle();
-
+    const { session, error: sessionErr } = await getActiveSession(user, ['active']);
     if (sessionErr) throw sessionErr;
 
     if (!session) {
-      const { data: pausedSession } = await supabase
-        .from('draw_sessions')
-        .select('id')
-        .eq('status', 'paused')
-        .maybeSingle();
-
-      if (pausedSession) {
+      const { session: paused } = await getActiveSession(user, ['paused']);
+      if (paused) {
         return NextResponse.json(
           { success: false, message: 'الجلسة متوقفة مؤقتاً، يرجى استئناف اللعب أولاً' },
           { status: 400 }
         );
       }
-
       return NextResponse.json(
         { success: false, message: 'لا توجد جلسة نشطة حالياً. يرجى بدء جلسة جديدة' },
         { status: 400 }
       );
     }
 
-    const previousDraws = session.draw_numbers || [];
-    const drawnBefore = new Set<number>(previousDraws.map((n: any) => n.number));
+    // Only this session's numbers — a small, indexed read rather than the whole
+    // session row with everything joined onto it.
+    const { data: drawnRows, error: drawnErr } = await supabase
+      .from('draw_numbers')
+      .select('number, draw_order')
+      .eq('session_id', session.id);
 
-    // 2. Pick the number — manual if one was sent, otherwise random from what's left
+    if (drawnErr) throw drawnErr;
+
+    const drawnBefore = new Set<number>((drawnRows || []).map((r: any) => r.number));
+
     let drawnNumber: number;
     const manualNumberRaw = body.number;
 
@@ -71,14 +65,12 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-
       if (drawnBefore.has(manualNum)) {
         return NextResponse.json(
           { success: false, message: 'هذا الرقم مسحوب مسبقاً' },
           { status: 400 }
         );
       }
-
       drawnNumber = manualNum;
     } else {
       if (drawnBefore.size >= 90) {
@@ -87,33 +79,24 @@ export async function POST(req: NextRequest) {
           message: 'تم سحب جميع الأرقام الـ 90 بالفعل!',
         });
       }
-
       const pool: number[] = [];
-      for (let i = 1; i <= 90; i++) {
-        if (!drawnBefore.has(i)) pool.push(i);
-      }
+      for (let i = 1; i <= 90; i++) if (!drawnBefore.has(i)) pool.push(i);
       drawnNumber = pool[Math.floor(Math.random() * pool.length)];
     }
 
-    // Derive the order from the highest one already stored rather than the row
-    // count, so undoing a number and drawing again cannot reuse an order.
-    const highestOrder = previousDraws.reduce(
+    const highestOrder = (drawnRows || []).reduce(
       (max: number, n: any) => (n.draw_order > max ? n.draw_order : max),
       0
     );
     const nextOrder = highestOrder + 1;
 
-    // 3. Save the draw
     const { error: insertErr } = await supabase
       .from('draw_numbers')
       .insert({ session_id: session.id, number: drawnNumber, draw_order: nextOrder });
 
     if (insertErr) throw insertErr;
 
-    // 4. Scan for new winners.
-    //    Only cards that actually contain the new number can have just won, so we
-    //    look at those (~150) instead of re-scanning all 900 cards, and we read
-    //    them from the cached index instead of hitting Supabase again.
+    // Only cards holding the new number can have just won.
     const index = await cardIndexPromise;
     const candidates = index.byNumber.get(drawnNumber) || [];
 
@@ -134,44 +117,24 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { success: false, message: 'حدث خطأ أثناء سحب الرقم من Supabase: ' + error.message },
+      { success: false, message: 'حدث خطأ أثناء سحب الرقم: ' + error.message },
       { status: 500 }
     );
   }
 }
 
 /**
- * Undo the most recent draw — for when the caller types the wrong number.
- * Removes only the last one, so it can be pressed repeatedly to walk back.
+ * Undo a drawn number — for a wrong call.
+ *
+ * One database round trip: delete straight by (session, number) and let the
+ * delete report what it removed. The previous version looked the session up,
+ * then the row, then deleted it — three trips, about two seconds.
  */
 export async function DELETE(req: NextRequest) {
   try {
-    if (!hasRole(req, ['admin', 'caller'])) {
-      return NextResponse.json(
-        { success: false, message: 'غير مصرح لك بالقيام بهذا الإجراء' },
-        { status: 403 }
-      );
-    }
+    const user = getUserSession(req);
+    if (!user) return unauthorized();
 
-    const { data: session, error: sessionErr } = await supabase
-      .from('draw_sessions')
-      .select('id, status')
-      .in('status', ['active', 'paused'])
-      .maybeSingle();
-
-    if (sessionErr) throw sessionErr;
-
-    if (!session) {
-      return NextResponse.json(
-        { success: false, message: 'لا توجد جلسة نشطة حالياً' },
-        { status: 400 }
-      );
-    }
-
-    // The caller may name the number to remove. That is what the play screen
-    // does, so the row that comes off is exactly the one shown on the button —
-    // relying on "highest draw_order" alone can pick the wrong row when two
-    // numbers were entered in quick succession and share an order.
     let requestedNumber: number | null = null;
     try {
       const body = await req.json();
@@ -181,62 +144,106 @@ export async function DELETE(req: NextRequest) {
       // no body — fall back to removing the most recent row
     }
 
-    let query = supabase
-      .from('draw_numbers')
-      .select('id, number, draw_order')
-      .eq('session_id', session.id);
+    const { session, error: sessionErr } = await getActiveSession(user);
+    if (sessionErr) throw sessionErr;
 
-    if (requestedNumber !== null) query = query.eq('number', requestedNumber);
-
-    const { data: last, error: lastErr } = await query
-      .order('draw_order', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (lastErr) throw lastErr;
-
-    if (!last) {
+    if (!session) {
       return NextResponse.json(
-        {
-          success: false,
-          message:
-            requestedNumber !== null
-              ? `الرقم ${requestedNumber} غير موجود ضمن الأرقام المسحوبة`
-              : 'لا يوجد رقم مسحوب لإلغائه',
-        },
+        { success: false, message: 'لا توجد جلسة نشطة حالياً' },
         { status: 400 }
       );
     }
 
-    // `.select()` makes the delete report which rows it actually removed.
-    // Without it Supabase answers "no error" even when a row-level-security
-    // policy silently blocked the delete — which looked like a successful
-    // cancel while the number stayed in the table.
-    const { data: deleted, error: deleteErr } = await supabase
-      .from('draw_numbers')
-      .delete()
-      .eq('id', last.id)
-      .select('id, number');
+    let removed: { number: number } | null = null;
 
-    if (deleteErr) throw deleteErr;
+    if (requestedNumber !== null) {
+      // The fast path the play screen uses: it already knows the number.
+      const { data, error } = await supabase
+        .from('draw_numbers')
+        .delete()
+        .eq('session_id', session.id)
+        .eq('number', requestedNumber)
+        .select('number');
 
-    if (!deleted || deleted.length === 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            `لم يتم حذف الرقم ${last.number} من قاعدة البيانات. ` +
-            'قاعدة البيانات ترفض الحذف — يرجى السماح بالحذف (DELETE) لجدول draw_numbers في إعدادات Supabase.',
-          code: 'delete_blocked',
-        },
-        { status: 500 }
-      );
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        // Tell apart "not drawn" from "the database refused to delete".
+        const { count } = await supabase
+          .from('draw_numbers')
+          .select('id', { count: 'exact', head: true })
+          .eq('session_id', session.id)
+          .eq('number', requestedNumber);
+
+        if ((count || 0) > 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              code: 'delete_blocked',
+              message:
+                `لم يتم حذف الرقم ${requestedNumber} من قاعدة البيانات. ` +
+                'قاعدة البيانات ترفض الحذف — يرجى السماح بالحذف (DELETE) لجدول draw_numbers في Supabase.',
+            },
+            { status: 500 }
+          );
+        }
+
+        return NextResponse.json(
+          {
+            success: false,
+            message: `الرقم ${requestedNumber} غير موجود ضمن الأرقام المسحوبة`,
+          },
+          { status: 400 }
+        );
+      }
+
+      removed = { number: data[0].number };
+    } else {
+      const { data: last, error: lastErr } = await supabase
+        .from('draw_numbers')
+        .select('id, number')
+        .eq('session_id', session.id)
+        .order('draw_order', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (lastErr) throw lastErr;
+
+      if (!last) {
+        return NextResponse.json(
+          { success: false, message: 'لا يوجد رقم مسحوب لإلغائه' },
+          { status: 400 }
+        );
+      }
+
+      const { data, error } = await supabase
+        .from('draw_numbers')
+        .delete()
+        .eq('id', last.id)
+        .select('number');
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            code: 'delete_blocked',
+            message:
+              `لم يتم حذف الرقم ${last.number} من قاعدة البيانات. ` +
+              'قاعدة البيانات ترفض الحذف — يرجى السماح بالحذف (DELETE) لجدول draw_numbers في Supabase.',
+          },
+          { status: 500 }
+        );
+      }
+
+      removed = { number: data[0].number };
     }
 
     return NextResponse.json({
       success: true,
-      removedNumber: last.number,
-      message: `تم إلغاء الرقم ${last.number}`,
+      removedNumber: removed.number,
+      message: `تم إلغاء الرقم ${removed.number}`,
     });
   } catch (error: any) {
     return NextResponse.json(
