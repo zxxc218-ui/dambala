@@ -1,20 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { getUserSession } from '@/lib/auth';
 import { getCardIndex, winsForCard } from '@/lib/cards';
 
 export async function GET(req: NextRequest) {
   try {
+    const user = getUserSession(req);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: 'يرجى تسجيل الدخول أولاً', needsLogin: true },
+        { status: 401 }
+      );
+    }
+
     const cardIndexPromise = getCardIndex();
 
-    // 1. Find the active or paused session
-    const { data: session, error: sessionErr } = await supabase
+    // 1. Find this club's active or paused session
+    let sessionQuery = supabase
       .from('draw_sessions')
       .select(`
         id,
         name,
         draw_numbers ( number )
       `)
-      .in('status', ['active', 'paused'])
+      .in('status', ['active', 'paused']);
+
+    sessionQuery =
+      user.clubId === null ? sessionQuery.is('club_id', null) : sessionQuery.eq('club_id', user.clubId);
+
+    const { data: session, error: sessionErr } = await sessionQuery
+      .order('started_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (sessionErr) throw sessionErr;
