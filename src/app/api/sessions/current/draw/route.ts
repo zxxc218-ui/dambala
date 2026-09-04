@@ -208,12 +208,30 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const { error: deleteErr } = await supabase
+    // `.select()` makes the delete report which rows it actually removed.
+    // Without it Supabase answers "no error" even when a row-level-security
+    // policy silently blocked the delete — which looked like a successful
+    // cancel while the number stayed in the table.
+    const { data: deleted, error: deleteErr } = await supabase
       .from('draw_numbers')
       .delete()
-      .eq('id', last.id);
+      .eq('id', last.id)
+      .select('id, number');
 
     if (deleteErr) throw deleteErr;
+
+    if (!deleted || deleted.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            `لم يتم حذف الرقم ${last.number} من قاعدة البيانات. ` +
+            'قاعدة البيانات ترفض الحذف — يرجى السماح بالحذف (DELETE) لجدول draw_numbers في إعدادات Supabase.',
+          code: 'delete_blocked',
+        },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
