@@ -3,11 +3,12 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { LogOut, Award, Play, LayoutGrid, Tv, User, Home, ScrollText } from 'lucide-react';
+import { LogOut, Award, Play, LayoutGrid, Tv, User, Home, ScrollText, Users } from 'lucide-react';
 
 interface UserSession {
   username: string;
-  role: 'admin' | 'caller' | 'checker' | 'viewer';
+  role: 'super_admin' | 'club';
+  clubName?: string | null;
 }
 
 export default function Navbar() {
@@ -60,15 +61,13 @@ export default function Navbar() {
   };
 
   const getRoleLabel = (role: string) => {
-    if (role === 'admin') return 'مدير';
-    if (role === 'caller') return 'منادي';
-    if (role === 'checker') return 'مدقق';
-    if (role === 'viewer') return 'عرض';
+    if (role === 'super_admin') return 'سوبر أدمن';
+    if (role === 'club') return 'نادي';
     return '';
   };
 
   // Hide navbars completely on specific routes
-  const hideNavbarRoutes = ['/login', '/display', '/print'];
+  const hideNavbarRoutes = ['/login', '/display', '/print', '/setup'];
   if (hideNavbarRoutes.some(route => pathname === route || pathname?.startsWith(route + '/'))) {
     return null;
   }
@@ -81,42 +80,48 @@ export default function Navbar() {
       name: 'الرئيسية',
       href: '/',
       icon: Home,
-      roles: ['admin', 'caller', 'checker', 'viewer'],
+      roles: ['super_admin', 'club'],
     },
     {
       name: 'اللعب',
       href: '/play',
       icon: Play,
-      roles: ['admin', 'caller'],
+      roles: ['super_admin', 'club'],
     },
     {
       name: 'السيتات',
       href: '/admin',
       icon: LayoutGrid,
-      roles: ['admin'],
+      roles: ['super_admin', 'club'],
     },
     {
       name: 'فحص',
       href: '/check',
       icon: Award,
-      roles: ['admin', 'checker'],
+      roles: ['super_admin', 'club'],
     },
     {
       name: 'الخريطة',
       href: '/sheet',
       icon: ScrollText,
-      roles: ['admin', 'caller', 'checker', 'viewer'],
+      roles: ['super_admin', 'club'],
     },
     {
       name: 'العرض',
       href: '/display',
       icon: Tv,
-      roles: ['admin', 'caller', 'viewer'],
+      roles: ['super_admin', 'club'],
+    },
+    {
+      name: 'النوادي',
+      href: '/admin/users',
+      icon: Users,
+      roles: ['super_admin'],
     },
   ];
 
-  // Filter tabs by user's role
-  const visibleTabs = allTabs;
+  // Only show what this account may actually open
+  const visibleTabs = allTabs.filter(tab => !userRole || tab.roles.includes(userRole));
 
   return (
     <>
@@ -125,14 +130,42 @@ export default function Navbar() {
         On phones it is just the logo (navigation lives in the bottom bar).
         From md up the tabs move up here, where a mouse expects them.
       */}
-      <header className="w-full h-14 md:h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-center md:justify-between gap-4 px-4 md:px-6 sticky top-0 z-40 select-none">
+      <header className="w-full h-14 md:h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-4 px-4 md:px-6 sticky top-0 z-40 select-none">
         <Link
           href="/"
           className="flex items-center gap-2 text-emerald-500 font-extrabold text-lg transition-transform active:scale-95 shrink-0"
         >
           <span>🎯</span>
-          <span>الدمبلة العراقية</span>
+          <span className="truncate">الدمبلة العراقية</span>
         </Link>
+
+        {session && (
+          <button
+            onClick={handleLogout}
+            title="تسجيل الخروج"
+            className="md:hidden p-2 rounded-lg text-slate-400 hover:text-red-400 transition-all cursor-pointer"
+          >
+            <LogOut size={16} />
+          </button>
+        )}
+
+        <div className="hidden md:flex items-center gap-3">
+          {session && (
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-400 font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                {session.clubName || session.username}
+                <span className="text-slate-600"> · {getRoleLabel(session.role)}</span>
+              </span>
+              <button
+                onClick={handleLogout}
+                title="تسجيل الخروج"
+                className="p-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-all cursor-pointer"
+              >
+                <LogOut size={15} />
+              </button>
+            </div>
+          )}
+        </div>
 
         <nav className="hidden md:flex items-center gap-1">
           {visibleTabs.map((tab) => {
