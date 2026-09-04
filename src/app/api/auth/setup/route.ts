@@ -30,17 +30,29 @@ async function superAdminExists() {
   return { exists: (data || []).length > 0 };
 }
 
+/**
+ * Supabase reports a missing table two different ways depending on whether the
+ * request reached Postgres or stopped at PostgREST's schema cache.
+ */
+function isTableMissing(error: any): boolean {
+  return (
+    error?.code === '42P01' ||
+    error?.code === 'PGRST205' ||
+    /could not find the table/i.test(error?.message || '')
+  );
+}
+
 export async function GET() {
   const check = await superAdminExists();
 
   if (check.error) {
-    const tableMissing = (check.error as any).code === '42P01';
+    const tableMissing = isTableMissing(check.error);
     return NextResponse.json({
       success: false,
       tableMissing,
       hasServiceRole,
       message: tableMissing
-        ? 'جدول المستخدمين غير موجود. يرجى تشغيل سكربت SQL في Supabase أولاً.'
+        ? 'جدول المستخدمين غير موجود. شغّل سكربت db/users.sql في Supabase أولاً.'
         : 'تعذر قراءة جدول المستخدمين: ' + (check.error as any).message,
     });
   }
