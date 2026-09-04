@@ -49,18 +49,23 @@ export default function PlayPage() {
     fetchCurrentSession();
   }, []);
 
-  const fetchCurrentSession = async () => {
-    setLoading(true);
+  /**
+   * Read the session from the server.
+   * `silent` re-syncs in place without blanking the screen behind a spinner —
+   * used after an undo or a rejected number, where the UI is already on screen.
+   */
+  const fetchCurrentSession = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await fetch('/api/sessions/current');
       const data = await res.json();
       if (data.success) {
-        setSession(data.session);
+        setSession(data.session ? { ...data.session, numbers: data.session.numbers ?? [] } : null);
       }
     } catch (err) {
       console.error('Failed to fetch current session:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -76,7 +81,7 @@ export default function PlayPage() {
       });
       const data = await res.json();
       if (data.success) {
-        setSession(data.session);
+        setSession({ ...data.session, numbers: data.session.numbers ?? [] });
         setNewSessionName('');
         setAllWinners(null);
         setActiveNewWinners([]);
@@ -93,8 +98,9 @@ export default function PlayPage() {
   const processDrawResult = (data: any) => {
     setSession(prev => {
       if (!prev) return prev;
-      if (prev.numbers.some(n => n.number === data.number)) return prev; // already shown optimistically
-      return { ...prev, numbers: [...prev.numbers, { number: data.number, drawOrder: data.order }] };
+      const current = prev.numbers ?? [];
+      if (current.some(n => n.number === data.number)) return prev; // already shown optimistically
+      return { ...prev, numbers: [...current, { number: data.number, drawOrder: data.order }] };
     });
 
     // If new winners are detected, trigger alert popup
@@ -111,14 +117,14 @@ export default function PlayPage() {
    */
   const submitNumber = (num: number) => {
     if (!session || session.status !== 'active') return;
-    if (session.numbers.some(n => n.number === num)) {
+    if ((session.numbers ?? []).some(n => n.number === num)) {
       setError('هذا الرقم مسحوب مسبقاً');
       return;
     }
 
     setError('');
     setSession(prev =>
-      prev ? { ...prev, numbers: [...prev.numbers, { number: num, drawOrder: prev.numbers.length + 1 }] } : prev
+      prev ? { ...prev, numbers: [...(prev.numbers ?? []), { number: num, drawOrder: (prev.numbers ?? []).length + 1 }] } : prev
     );
     setPendingCount(c => c + 1);
 
@@ -133,27 +139,41 @@ export default function PlayPage() {
           if (data.newWinners && data.newWinners.length > 0) setActiveNewWinners(data.newWinners);
         } else {
           // roll the number back out
-          setSession(prev => (prev ? { ...prev, numbers: prev.numbers.filter(n => n.number !== num) } : prev));
+          setSession(prev => (prev ? { ...prev, numbers: (prev.numbers ?? []).filter(n => n.number !== num) } : prev));
           setError(data.message || 'حدث خطأ أثناء إضافة الرقم');
+          // the screen and the database disagreed — take the database's word for it
+          fetchCurrentSession(true);
         }
       })
       .catch(() => {
-        setSession(prev => (prev ? { ...prev, numbers: prev.numbers.filter(n => n.number !== num) } : prev));
+        setSession(prev => (prev ? { ...prev, numbers: (prev.numbers ?? []).filter(n => n.number !== num) } : prev));
         setError('تعذر الاتصال بالسيرفر لإضافة الرقم');
       })
       .finally(() => setPendingCount(c => c - 1));
   };
 
-  /** Undo the last drawn number — for a mistyped call. */
+  /**
+   * Undo the last drawn number — for a mistyped call.
+   * The number itself is sent, not just "the last one", so the row that comes off
+   * is exactly the one shown on the button. Afterwards the session is re-read so
+   * the screen can never drift from the database (which is what made a cancelled
+   * number look free while the server still had it).
+   */
   const handleUndoLast = async () => {
-    if (!session || undoing || session.numbers.length === 0) return;
+    const numbers = session?.numbers ?? [];
+    if (!session || undoing || numbers.length === 0) return;
+
+    const target = numbers[numbers.length - 1].number;
     setUndoing(true);
     setError('');
     try {
-      const res = await fetch('/api/sessions/current/draw', { method: 'DELETE' });
+      const res = await fetch('/api/sessions/current/draw', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: target }),
+      });
       const data = await res.json();
       if (res.ok && data.success) {
-        setSession(prev => (prev ? { ...prev, numbers: prev.numbers.slice(0, -1) } : prev));
         setActiveNewWinners([]);
         setAllWinners(null);
       } else {
@@ -162,6 +182,7 @@ export default function PlayPage() {
     } catch {
       setError('تعذر الاتصال بالسيرفر لإلغاء الرقم');
     } finally {
+      await fetchCurrentSession(true); // resync either way
       setUndoing(false);
     }
   };
@@ -301,13 +322,10 @@ export default function PlayPage() {
   };
 
   // Helper values
-  const drawnNumbers = session?.numbers.map(n => n.number) || [];
-  const latestDraw = session && session.numbers.length > 0
-    ? session.numbers[session.numbers.length - 1].number
-    : null;
-  const previousDraw = session && session.numbers.length > 1
-    ? session.numbers[session.numbers.length - 2].number
-    : null;
+  const sessionNumbers = session?.numbers ?? [];
+  const drawnNumbers = sessionNumbers.map(n => n.number);
+  const latestDraw = sessionNumbers.length > 0 ? sessionNumbers[sessionNumbers.length - 1].number : null;
+  const previousDraw = sessionNumbers.length > 1 ? sessionNumbers[sessionNumbers.length - 2].number : null;
 
   const formatSetNo = (no: number) => String(no).padStart(3, '0');
   const formatCardNo = (no: number) => String(no).padStart(2, '0');
@@ -562,13 +580,13 @@ export default function PlayPage() {
                 <History size={14} className="text-emerald-400" /> سجل السحب تنازلياً:
               </h3>
 
-              {session.numbers.length === 0 ? (
+              {sessionNumbers.length === 0 ? (
                 <p className="text-slate-500 text-xs text-center py-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
                   لا توجد أرقام مسحوبة حالياً
                 </p>
               ) : (
                 <div className="flex flex-wrap gap-1.5 justify-end" style={{ direction: 'ltr' }}>
-                  {[...session.numbers].reverse().map((n) => (
+                  {[...sessionNumbers].reverse().map((n) => (
                     <div 
                       key={n.drawOrder} 
                       className="px-2 py-1 bg-slate-950 border border-slate-850 rounded-lg text-[10px] font-black flex items-center gap-1"
