@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
-import { USER_COOKIE_NAME } from '@/lib/auth';
+import { supabaseAdmin } from '@/lib/supabase';
+import {
+  USER_COOKIE_NAME,
+  createSessionToken,
+  sessionCookieOptions,
+  verifyPassword,
+  UserProfile,
+} from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,20 +19,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Query profiles table in Supabase
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('username, password, role')
-      .eq('username', username)
+    const { data: user, error } = await supabaseAdmin
+      .from('app_users')
+      .select('id, username, password_hash, role, club_name, active')
+      .eq('username', String(username).trim().toLowerCase())
       .maybeSingle();
 
     if (error) {
       if (error.code === '42P01') {
         return NextResponse.json(
-          { 
-            success: false, 
-            message: 'جدول المستخدمين غير موجود في قاعدة البيانات. يرجى تهيئة جداول الأدوار في Supabase وتشغيل سكربت الـ SQL.',
-            isSchemaMissing: true
+          {
+            success: false,
+            message: 'جدول المستخدمين غير موجود بعد. افتح صفحة /setup لتهيئة النظام.',
+            needsSetup: true,
           },
           { status: 500 }
         );
@@ -34,37 +39,30 @@ export async function POST(req: NextRequest) {
       throw error;
     }
 
-    if (!profile || profile.password !== password) {
+    // Same answer whether the user is missing, disabled, or the password is
+    // wrong — so the form cannot be used to discover which usernames exist.
+    const ok = user && user.active && (await verifyPassword(password, user.password_hash));
+
+    if (!ok) {
       return NextResponse.json(
         { success: false, message: 'اسم المستخدم أو كلمة المرور غير صحيحة' },
         { status: 401 }
       );
     }
 
-    const userSession = {
-      username: profile.username,
-      role: profile.role
+    const profile: UserProfile = {
+      username: user.username,
+      role: user.role === 'super_admin' ? 'super_admin' : 'club',
+      clubId: user.role === 'super_admin' ? null : user.id,
+      clubName: user.club_name ?? null,
     };
 
-    const cookieValue = Buffer.from(JSON.stringify(userSession)).toString('base64');
-    const response = NextResponse.json({ 
-      success: true, 
-      message: 'تم تسجيل الدخول بنجاح',
-      user: userSession
-    });
-
-    response.cookies.set(USER_COOKIE_NAME, cookieValue, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-      path: '/',
-    });
-
+    const response = NextResponse.json({ success: true, user: profile });
+    response.cookies.set(USER_COOKIE_NAME, createSessionToken(profile), sessionCookieOptions);
     return response;
   } catch (error: any) {
     return NextResponse.json(
-      { success: false, message: 'حدث خطأ أثناء معالجة تسجيل الدخول: ' + error.message },
+      { success: false, message: 'حدث خطأ أثناء تسجيل الدخول: ' + error.message },
       { status: 500 }
     );
   }
