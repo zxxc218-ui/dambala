@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { getUserSession } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
   try {
-    const { data: dbSession, error } = await supabase
+    const user = getUserSession(req);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: 'يرجى تسجيل الدخول أولاً', needsLogin: true },
+        { status: 401 }
+      );
+    }
+
+    // A club only ever sees its own game.
+    let query = supabase
       .from('draw_sessions')
       .select(`
         id,
@@ -16,7 +26,13 @@ export async function GET(req: NextRequest) {
           draw_order
         )
       `)
-      .in('status', ['active', 'paused'])
+      .in('status', ['active', 'paused']);
+
+    query = user.clubId === null ? query.is('club_id', null) : query.eq('club_id', user.clubId);
+
+    const { data: dbSession, error } = await query
+      .order('started_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (error) throw error;
