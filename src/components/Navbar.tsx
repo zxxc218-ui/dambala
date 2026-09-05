@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { LogOut, Award, Play, LayoutGrid, Tv, User, Home, ScrollText, Users } from 'lucide-react';
+import { LogOut, Award, Play, LayoutGrid, Tv, User, Home, ScrollText, Users, BarChart3 } from 'lucide-react';
 
 interface UserSession {
   username: string;
@@ -110,6 +110,12 @@ export default function Navbar() {
       name: 'العرض',
       href: '/display',
       icon: Tv,
+      roles: ['super_admin', 'club'],
+    },
+    {
+      name: 'التقارير',
+      href: '/reports',
+      icon: BarChart3,
       roles: ['super_admin', 'club'],
     },
     {
