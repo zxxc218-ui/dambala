@@ -106,7 +106,6 @@ export async function GET(req: NextRequest) {
         key,
         label: standings[key].label,
         enabled: standings[key].enabled,
-        unlimited: standings[key].unlimited,
         count: standings[key].count,
         winners: standings[key].winners,
       })),
