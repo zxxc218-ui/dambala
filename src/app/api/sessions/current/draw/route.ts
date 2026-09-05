@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { getUserSession } from '@/lib/auth';
 import { getActiveSession } from '@/lib/sessions';
 import { getCardIndex, winsCompletedBy, WIN_LABELS } from '@/lib/cards';
+import { computeStandings, orderMap, toStatus, PrizeKey } from '@/lib/prizes';
 
 function unauthorized() {
   return NextResponse.json(
@@ -100,11 +101,54 @@ export async function POST(req: NextRequest) {
     const index = await cardIndexPromise;
     const candidates = index.byNumber.get(drawnNumber) || [];
 
-    const newWinners: { setNo: number; cardNo: number; winType: string }[] = [];
+    const completed: { setNo: number; cardNo: number; key: PrizeKey }[] = [];
     for (const cardIdx of candidates) {
       const card = index.cards[cardIdx];
       for (const win of winsCompletedBy(card, drawnNumber, drawnBefore)) {
-        newWinners.push({ setNo: card.setNo, cardNo: card.cardNo, winType: WIN_LABELS[win] });
+        if (!session.prizes[win].enabled) continue; // prize switched off for this game
+        completed.push({ setNo: card.setNo, cardNo: card.cardNo, key: win });
+      }
+    }
+
+    // Rank every card against this game's prize rules. Only worth doing when
+    // something actually completed — a plain number costs nothing extra.
+    let prizeStatus = null;
+    const newWinners: {
+      setNo: number;
+      cardNo: number;
+      winType: string;
+      key: PrizeKey;
+      place: number;
+      count: number;
+      unlimited: boolean;
+    }[] = [];
+
+    if (completed.length > 0) {
+      const orders = orderMap([
+        ...((drawnRows || []) as any),
+        { number: drawnNumber, draw_order: nextOrder },
+      ]);
+      const standings = computeStandings(index, orders, session.prizes);
+      prizeStatus = toStatus(standings);
+
+      for (const c of completed) {
+        const standing = standings[c.key];
+        // A card that finished the line after the prize was already full does
+        // not get announced — the prize is gone.
+        const place = standing.winners.findIndex(
+          (w) => w.setNo === c.setNo && w.cardNo === c.cardNo
+        );
+        if (place === -1) continue;
+
+        newWinners.push({
+          setNo: c.setNo,
+          cardNo: c.cardNo,
+          winType: WIN_LABELS[c.key],
+          key: c.key,
+          place: place + 1,
+          count: standing.count,
+          unlimited: standing.unlimited,
+        });
       }
     }
 
@@ -114,6 +158,7 @@ export async function POST(req: NextRequest) {
       order: nextOrder,
       sessionName: session.name,
       newWinners,
+      prizeStatus,
     });
   } catch (error: any) {
     return NextResponse.json(
