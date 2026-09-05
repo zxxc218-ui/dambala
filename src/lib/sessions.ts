@@ -1,5 +1,11 @@
 import { supabase } from '@/lib/supabase';
 import { UserProfile } from '@/lib/auth';
+import {
+  DEFAULT_PRIZES,
+  PrizeSettings,
+  isMissingPrizesColumn,
+  normalizePrizes,
+} from '@/lib/prizes';
 
 /**
  * Every club plays its own game. `draw_sessions.club_id` holds the id of the
@@ -12,6 +18,8 @@ export interface ActiveSession {
   id: number | string;
   name: string;
   status: string;
+  /** the prize rules this game is being played on */
+  prizes: PrizeSettings;
 }
 
 /**
@@ -40,17 +48,30 @@ export async function getActiveSession(
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return { session: hit.session };
 
-  const { data, error } = await scoped(
-    supabase.from('draw_sessions').select('id, name, status').in('status', statuses),
-    user
-  )
-    .order('started_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const read = (columns: string) =>
+    scoped(supabase.from('draw_sessions').select(columns).in('status', statuses), user)
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+  let { data, error } = (await read('id, name, status, prizes')) as any;
+
+  // db/prizes.sql not run yet — play on the default rules rather than fail.
+  if (error && isMissingPrizesColumn(error)) {
+    ({ data, error } = (await read('id, name, status')) as any);
+  }
 
   if (error) return { session: null, error };
 
-  const session = (data as ActiveSession) || null;
+  const session: ActiveSession | null = data
+    ? {
+        id: data.id,
+        name: data.name,
+        status: data.status,
+        prizes: data.prizes ? normalizePrizes(data.prizes) : { ...DEFAULT_PRIZES },
+      }
+    : null;
+
   cache.set(key, { session, at: Date.now() });
   return { session };
 }
