@@ -2,20 +2,47 @@
 
 import { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
-import { Play, Pause, RotateCcw, Award, History, Sparkles, Loader2, Plus, X, ListRestart, Undo2 } from 'lucide-react';
+import { Play, Pause, RotateCcw, Award, History, Sparkles, Loader2, Plus, X, ListRestart, Undo2, Gift, Check } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import PrizeSettingsPanel, {
+  DEFAULT_PRIZES,
+  PRIZE_LABELS,
+  PRIZE_ORDER,
+  PrizeKey,
+  PrizeSettings,
+  normalizePrizes,
+} from '@/components/PrizeSettings';
 
 interface DrawSession {
   id: string;
   name: string;
   status: 'active' | 'paused' | 'finished';
   numbers: { number: number; drawOrder: number }[];
+  prizes?: PrizeSettings;
+}
+
+/** live counter for one prize: how many cards have taken it so far */
+interface PrizeStatus {
+  key: PrizeKey;
+  label: string;
+  enabled: boolean;
+  unlimited: boolean;
+  count: number;
+  won: number;
+  closed: boolean;
 }
 
 interface Winner {
   setNo: number;
   cardNo: number;
   winType?: string;
+  key?: PrizeKey;
+  /** which place this card took in its prize (1 = first) */
+  place?: number;
+  count?: number;
+  unlimited?: boolean;
+  awarded?: Record<string, boolean>;
+  paid?: boolean;
   row1?: boolean;
   row2?: boolean;
   row3?: boolean;
@@ -44,6 +71,16 @@ export default function PlayPage() {
   const [allWinners, setAllWinners] = useState<Winner[] | null>(null);
   const [loadingAllWinners, setLoadingAllWinners] = useState(false);
 
+  // Prizes: which lines pay, how many times, and what has been won so far.
+  const [prizes, setPrizes] = useState<PrizeSettings>(DEFAULT_PRIZES);
+  const [prizeStatus, setPrizeStatus] = useState<PrizeStatus[] | null>(null);
+  /** 'start' = confirm before the game begins, 'edit' = change them mid-game */
+  const [prizeModal, setPrizeModal] = useState<null | 'start' | 'edit'>(null);
+  /** the rules being edited in the modal, kept apart until they are confirmed */
+  const [draftPrizes, setDraftPrizes] = useState<PrizeSettings>(DEFAULT_PRIZES);
+  const [savingPrizes, setSavingPrizes] = useState(false);
+  const [prizeNotice, setPrizeNotice] = useState('');
+
   // Fetch current session on mount
   useEffect(() => {
     fetchCurrentSession();
@@ -61,6 +98,15 @@ export default function PlayPage() {
       const data = await res.json();
       if (data.success) {
         setSession(data.session ? { ...data.session, numbers: data.session.numbers ?? [] } : null);
+        // A running game keeps its own rules; with no game we open on whatever
+        // this club used last time, so the start screen needs no re-typing.
+        setPrizes(normalizePrizes(data.session ? data.session.prizes : data.lastPrizes));
+        setPrizeStatus(data.prizeStatus ?? null);
+        if (data.prizesColumnMissing) {
+          setPrizeNotice(
+            'إعدادات الجوائز ما راح تنحفظ: شغّل السكربت db/prizes.sql في Supabase مرة وحدة.'
+          );
+        }
       }
     } catch (err) {
       console.error('Failed to fetch current session:', err);
@@ -69,22 +115,37 @@ export default function PlayPage() {
     }
   };
 
-  const handleStartSession = async (e: React.FormEvent) => {
+  /**
+   * Pressing "ابدأ" opens the prize rules first — the caller either changes a
+   * count or hits موافق and the game starts. The rules come pre-filled from the
+   * last game, so the fast path is a single tap.
+   */
+  const handleStartSession = (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    setDraftPrizes(prizes);
+    setPrizeModal('start');
+  };
+
+  const confirmStart = async () => {
     setCreating(true);
     setError('');
     try {
       const res = await fetch('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newSessionName }),
+        body: JSON.stringify({ name: newSessionName, prizes: draftPrizes }),
       });
       const data = await res.json();
       if (data.success) {
         setSession({ ...data.session, numbers: data.session.numbers ?? [] });
+        setPrizes(normalizePrizes(data.session.prizes ?? draftPrizes));
+        setPrizeStatus(null);
         setNewSessionName('');
         setAllWinners(null);
         setActiveNewWinners([]);
+        setPrizeModal(null);
+        if (data.prizesHint) setPrizeNotice(data.prizesHint);
       } else {
         setError(data.message);
       }
@@ -95,6 +156,38 @@ export default function PlayPage() {
     }
   };
 
+  /** Change the rules while a game is running. */
+  const savePrizes = async () => {
+    setSavingPrizes(true);
+    setError('');
+    try {
+      const res = await fetch('/api/sessions/current/prizes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prizes: draftPrizes }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setPrizes(normalizePrizes(data.prizes));
+        setSession(prev => (prev ? { ...prev, prizes: normalizePrizes(data.prizes) } : prev));
+        if (data.prizeStatus) setPrizeStatus(data.prizeStatus);
+        setPrizeModal(null);
+        setPrizeNotice('');
+      } else {
+        setError(data.message || 'تعذر حفظ إعدادات الجوائز');
+      }
+    } catch {
+      setError('تعذر الاتصال بالسيرفر لحفظ إعدادات الجوائز');
+    } finally {
+      setSavingPrizes(false);
+    }
+  };
+
+  const openPrizeEditor = () => {
+    setDraftPrizes(prizes);
+    setPrizeModal('edit');
+  };
+
   const processDrawResult = (data: any) => {
     setSession(prev => {
       if (!prev) return prev;
@@ -102,6 +195,8 @@ export default function PlayPage() {
       if (current.some(n => n.number === data.number)) return prev; // already shown optimistically
       return { ...prev, numbers: [...current, { number: data.number, drawOrder: data.order }] };
     });
+
+    if (data.prizeStatus) setPrizeStatus(data.prizeStatus);
 
     // If new winners are detected, trigger alert popup
     if (data.newWinners && data.newWinners.length > 0) {
@@ -136,6 +231,7 @@ export default function PlayPage() {
       .then(res => res.json().then(data => ({ ok: res.ok, data })))
       .then(({ ok, data }) => {
         if (ok && data.success) {
+          if (data.prizeStatus) setPrizeStatus(data.prizeStatus);
           if (data.newWinners && data.newWinners.length > 0) setActiveNewWinners(data.newWinners);
         } else {
           // roll the number back out
@@ -273,6 +369,7 @@ export default function PlayPage() {
         });
         setAllWinners(null);
         setActiveNewWinners([]);
+        setPrizeStatus(null);
         setError('');
       }
     } catch (err) {
@@ -311,6 +408,7 @@ export default function PlayPage() {
       const data = await res.json();
       if (data.success) {
         setAllWinners(data.winners);
+        if (data.prizes) setPrizeStatus(data.prizes);
       } else {
         alert(data.message || 'فشل فحص الفائزين');
       }
@@ -326,6 +424,23 @@ export default function PlayPage() {
   const drawnNumbers = sessionNumbers.map(n => n.number);
   const latestDraw = sessionNumbers.length > 0 ? sessionNumbers[sessionNumbers.length - 1].number : null;
   const previousDraw = sessionNumbers.length > 1 ? sessionNumbers[sessionNumbers.length - 2].number : null;
+
+  /**
+   * The prize row shown while playing. Falls back to the rules alone (nothing
+   * won yet) until the server has sent counters back.
+   */
+  const prizeBoard: PrizeStatus[] = (
+    prizeStatus ??
+    PRIZE_ORDER.map((key) => ({
+      key,
+      label: PRIZE_LABELS[key],
+      enabled: prizes[key].enabled,
+      unlimited: key === 'corners',
+      count: prizes[key].count,
+      won: 0,
+      closed: false,
+    }))
+  ).filter((p) => p.enabled);
 
   const formatSetNo = (no: number) => String(no).padStart(3, '0');
   const formatCardNo = (no: number) => String(no).padStart(2, '0');
@@ -350,6 +465,8 @@ export default function PlayPage() {
               <h2 className="text-lg font-black text-slate-100" style={{ fontFamily: 'Cairo, sans-serif' }}>بدء جلسة سحب جديدة</h2>
               <p className="text-slate-400 text-xs mt-2 leading-relaxed" style={{ fontFamily: 'Cairo, sans-serif' }}>
                 للبدء بسحب الأرقام ومراقبة الفائزين، يرجى تشغيل الجلسة أولاً.
+                <br />
+                بعد الضغط راح تطلعلك إعدادات الجوائز — عدّلها أو دوس موافق.
               </p>
             </div>
 
@@ -406,6 +523,14 @@ export default function PlayPage() {
 
               <div className="grid grid-cols-2 gap-2 mt-1">
                 <button
+                  onClick={openPrizeEditor}
+                  className="col-span-2 flex items-center justify-center gap-1.5 py-2 px-3 text-[11px] font-extrabold border border-amber-500/25 hover:border-amber-500/45 text-amber-400 bg-amber-500/5 rounded-xl transition-all cursor-pointer"
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
+                >
+                  <Gift size={13} /> إعدادات الجوائز
+                </button>
+
+                <button
                   onClick={handleCheckAllWinners}
                   className="flex items-center justify-center gap-1.5 py-2 px-3 text-[11px] font-extrabold border border-cyan-500/20 hover:border-cyan-500/40 text-cyan-400 bg-cyan-500/5 rounded-xl transition-all cursor-pointer"
                   style={{ fontFamily: 'Cairo, sans-serif' }}
@@ -443,6 +568,49 @@ export default function PlayPage() {
             {error && (
               <div className="bg-red-500/10 border border-red-500/25 text-red-400 p-3 rounded-xl text-xs font-bold text-center">
                 {error}
+              </div>
+            )}
+
+            {prizeNotice && (
+              <div className="bg-amber-500/10 border border-amber-500/25 text-amber-400 p-3 rounded-xl text-[11px] font-bold text-center leading-relaxed" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                {prizeNotice}
+              </div>
+            )}
+
+            {/* Live prize board — what is still open and what has gone */}
+            {prizeBoard.length > 0 && (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+                <h3 className="text-xs font-bold text-slate-300 mb-3 flex items-center gap-1.5" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                  <Gift size={14} className="text-amber-400" /> الجوائز:
+                </h3>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {prizeBoard.map((p) => (
+                    <div
+                      key={p.key}
+                      className={`px-2.5 py-2 rounded-xl border flex items-center justify-between gap-2 ${
+                        p.closed
+                          ? 'bg-slate-950/60 border-slate-850 text-slate-500'
+                          : p.won > 0
+                          ? 'bg-emerald-500/5 border-emerald-500/25 text-emerald-400'
+                          : 'bg-slate-950 border-slate-800 text-slate-300'
+                      }`}
+                    >
+                      <span className="text-[10px] font-black truncate" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                        {p.label}
+                      </span>
+                      <span className="text-[10px] font-mono font-black flex-shrink-0" style={{ direction: 'ltr' }}>
+                        {p.unlimited ? `${p.won} ∞` : `${p.won}/${p.count}`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {prizeBoard.some((p) => p.closed) && (
+                  <p className="mt-2.5 text-[9px] text-slate-500 text-center" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                    الجائزة الرمادية مكتملة — ما عاد تنبّه على فائز جديد.
+                  </p>
+                )}
               </div>
             )}
 
@@ -602,6 +770,80 @@ export default function PlayPage() {
           </div>
         )}
 
+        {/* -------------------- 0. POPUP MODAL: PRIZE RULES -------------------- */}
+        {prizeModal !== null && (
+          <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50 animate-[fadeIn_0.2s_ease-out]">
+            <div className="bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-3xl shadow-2xl w-full sm:max-w-md max-h-[92vh] flex flex-col">
+
+              <div className="p-5 pb-3 border-b border-slate-800 flex items-start justify-between gap-3">
+                <div className="text-right">
+                  <h3 className="text-sm font-black text-slate-100 flex items-center gap-1.5" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                    <Gift className="text-amber-400" size={16} />
+                    {prizeModal === 'start' ? 'جوائز هذه الجلسة' : 'تعديل الجوائز'}
+                  </h3>
+                  <p className="text-slate-400 text-[10px] mt-1 leading-relaxed" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                    {prizeModal === 'start'
+                      ? 'شغّل أو أطفي أي خط، وحدد كم مرة يفوز — أو دوس موافق وابدأ.'
+                      : 'التعديل ينطبق حالاً على نفس الجلسة.'}
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setPrizeModal(null)}
+                  disabled={creating || savingPrizes}
+                  className="text-slate-500 hover:text-slate-300 transition-colors cursor-pointer disabled:opacity-40"
+                  aria-label="إغلاق"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-4 overflow-y-auto flex-1">
+                <PrizeSettingsPanel
+                  value={draftPrizes}
+                  onChange={setDraftPrizes}
+                  disabled={creating || savingPrizes}
+                  status={prizeModal === 'edit' ? prizeStatus : null}
+                />
+              </div>
+
+              {error && (
+                <div className="mx-4 mb-2 bg-red-500/10 border border-red-500/25 text-red-400 p-2.5 rounded-xl text-[11px] font-bold text-center" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                  {error}
+                </div>
+              )}
+
+              <div className="p-4 pt-2 border-t border-slate-800 flex gap-2">
+                <button
+                  onClick={() => setPrizeModal(null)}
+                  disabled={creating || savingPrizes}
+                  className="px-4 py-3 text-xs font-bold border border-slate-700 hover:bg-slate-800 text-slate-300 rounded-xl transition-all cursor-pointer disabled:opacity-40"
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
+                >
+                  رجوع
+                </button>
+
+                <button
+                  onClick={prizeModal === 'start' ? confirmStart : savePrizes}
+                  disabled={creating || savingPrizes}
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-600 text-slate-950 font-black py-3 px-6 rounded-xl text-sm transition-all active:scale-[0.98] shadow-lg shadow-emerald-500/10 cursor-pointer"
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
+                >
+                  <Check size={16} />
+                  {prizeModal === 'start'
+                    ? creating
+                      ? 'جاري بدء الجلسة...'
+                      : 'موافق وابدأ الجلسة'
+                    : savingPrizes
+                    ? 'جاري الحفظ...'
+                    : 'حفظ التعديلات'}
+                </button>
+              </div>
+
+            </div>
+          </div>
+        )}
+
         {/* -------------------- 1. POPUP MODAL: NEW WINNER ALERT -------------------- */}
         {activeNewWinners.length > 0 && (
           <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-[fadeIn_0.2s_ease-out]">
@@ -631,10 +873,15 @@ export default function PlayPage() {
                     key={idx} 
                     className="p-2.5 bg-slate-950 border border-slate-800/80 rounded-xl flex justify-between items-center"
                   >
-                    <span className="font-bold text-slate-200 text-xs">
-                      السيت: {formatSetNo(winner.setNo)} | كرت: {formatCardNo(winner.cardNo)}
+                    <span className="font-bold text-slate-200 text-xs flex flex-col items-start gap-0.5">
+                      <span>السيت: {formatSetNo(winner.setNo)} | كرت: {formatCardNo(winner.cardNo)}</span>
+                      {winner.place !== undefined && !winner.unlimited && winner.count ? (
+                        <span className="text-[9px] font-black text-slate-500" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                          الفائز {winner.place} من {winner.count}
+                        </span>
+                      ) : null}
                     </span>
-                    <span className={`px-2 py-0.5 rounded-lg font-black text-[10px] ${
+                    <span className={`px-2 py-0.5 rounded-lg font-black text-[10px] flex-shrink-0 ${
                       winner.winType === 'البطاقة كاملة (دمبلة)'
                         ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                         : winner.winType === 'الزوايا'
@@ -677,6 +924,26 @@ export default function PlayPage() {
                 قائمة بجميع البطاقات الفائزة مقارنة بكامل الأرقام المسحوبة بالجلسة.
               </p>
 
+              {prizeBoard.length > 0 && (
+                <div className="mb-4 grid grid-cols-2 gap-1.5">
+                  {prizeBoard.map((p) => (
+                    <div
+                      key={p.key}
+                      className={`px-2 py-1.5 rounded-lg border text-[9px] font-black flex items-center justify-between gap-1 ${
+                        p.closed
+                          ? 'bg-slate-950/60 border-slate-850 text-slate-500'
+                          : 'bg-slate-950 border-slate-800 text-slate-300'
+                      }`}
+                    >
+                      <span className="truncate" style={{ fontFamily: 'Cairo, sans-serif' }}>{p.label}</span>
+                      <span className="font-mono flex-shrink-0" style={{ direction: 'ltr' }}>
+                        {p.unlimited ? `${p.won} ∞` : `${p.won}/${p.count}`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {allWinners.length === 0 ? (
                 <div className="text-center py-6 text-slate-500 text-xs">
                   <p style={{ fontFamily: 'Cairo, sans-serif' }}>لا يوجد أي بطاقة فائزة في الجلسة حتى الآن.</p>
@@ -693,32 +960,51 @@ export default function PlayPage() {
                           سيت {formatSetNo(winner.setNo)} | كرت {formatCardNo(winner.cardNo)}
                         </span>
                         <div className="flex gap-1">
-                          {winner.corners && (
+                          {winner.awarded?.corners && (
                             <span className="px-2 py-0.5 bg-sky-500/10 border border-sky-500/20 text-sky-400 rounded-lg text-[9px] font-black" style={{ fontFamily: 'Cairo, sans-serif' }}>
                               ◤ الزوايا
                             </span>
                           )}
                           {winner.fullCard && (
-                            <span className="px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-lg text-[9px] font-black" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                            <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black border ${
+                              winner.awarded?.fullCard
+                                ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+                                : 'bg-slate-900 border-slate-800 text-slate-500'
+                            }`} style={{ fontFamily: 'Cairo, sans-serif' }}>
                               🏆 دمبلة
                             </span>
                           )}
                         </div>
                       </div>
                       
+                      {/* Green = took the prize. Amber = line complete but the
+                          prize was already full or switched off. */}
                       <div className="grid grid-cols-4 gap-1 text-[10px] font-bold text-center">
-                        <div className={`p-1 rounded ${winner.row1 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-900 text-slate-600'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
-                          السطر 1: {winner.row1 ? 'فائز' : '✖'}
-                        </div>
-                        <div className={`p-1 rounded ${winner.row2 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-900 text-slate-600'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
-                          السطر 2: {winner.row2 ? 'فائز' : '✖'}
-                        </div>
-                        <div className={`p-1 rounded ${winner.row3 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-900 text-slate-600'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
-                          السطر 3: {winner.row3 ? 'فائز' : '✖'}
-                        </div>
-                        <div className={`p-1 rounded ${winner.corners ? 'bg-sky-500/10 text-sky-400' : 'bg-slate-900 text-slate-600'}`} style={{ fontFamily: 'Cairo, sans-serif' }}>
-                          الزوايا: {winner.corners ? 'فائز' : '✖'}
-                        </div>
+                        {([
+                          ['row1', 'السطر 1', winner.row1],
+                          ['row2', 'السطر 2', winner.row2],
+                          ['row3', 'السطر 3', winner.row3],
+                          ['corners', 'الزوايا', winner.corners],
+                        ] as [PrizeKey, string, boolean | undefined][]).map(([key, label, done]) => {
+                          const paid = Boolean(winner.awarded?.[key]);
+                          return (
+                            <div
+                              key={key}
+                              className={`p-1 rounded ${
+                                paid
+                                  ? key === 'corners'
+                                    ? 'bg-sky-500/10 text-sky-400'
+                                    : 'bg-emerald-500/10 text-emerald-400'
+                                  : done
+                                  ? 'bg-amber-500/5 text-amber-500/70'
+                                  : 'bg-slate-900 text-slate-600'
+                              }`}
+                              style={{ fontFamily: 'Cairo, sans-serif' }}
+                            >
+                              {label}: {paid ? 'فائز' : done ? 'متأخر' : '✖'}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}
