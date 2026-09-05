@@ -3,9 +3,8 @@ import { CardIndex, IndexedCard, WinType, WIN_LABELS } from '@/lib/cards';
 /**
  * Prize rules for one game.
  *
- * Each prize can be switched off, and the line prizes carry a count: how many
- * cards are allowed to win that line before it closes. الزوايا is deliberately
- * outside the counting — if a card's four corners come up it wins, full stop.
+ * Every prize can be switched off, and each carries a count: how many cards are
+ * allowed to win it before it closes.
  *
  * Nothing about who has won is stored. The standings are worked out from the
  * numbers drawn so far, so undoing a number takes its win back with it.
@@ -15,14 +14,11 @@ export type PrizeKey = WinType;
 
 export interface PrizeRule {
   enabled: boolean;
-  /** how many cards may win it; ignored for the unlimited prizes */
+  /** how many cards may win it before it closes */
   count: number;
 }
 
 export type PrizeSettings = Record<PrizeKey, PrizeRule>;
-
-/** Prizes that are never capped — they pay out every time they appear. */
-export const UNLIMITED_PRIZES: PrizeKey[] = ['corners'];
 
 export const PRIZE_ORDER: PrizeKey[] = ['row1', 'row2', 'row3', 'corners', 'fullCard'];
 
@@ -34,13 +30,9 @@ export const DEFAULT_PRIZES: PrizeSettings = {
   row1: { enabled: true, count: 1 },
   row2: { enabled: true, count: 1 },
   row3: { enabled: true, count: 1 },
-  corners: { enabled: true, count: 0 },
+  corners: { enabled: true, count: 1 },
   fullCard: { enabled: true, count: 1 },
 };
-
-export function isUnlimited(key: PrizeKey): boolean {
-  return UNLIMITED_PRIZES.includes(key);
-}
 
 /** Accept whatever came off the wire (or out of an old row) and make it safe. */
 export function normalizePrizes(raw: any): PrizeSettings {
@@ -58,11 +50,10 @@ export function normalizePrizes(raw: any): PrizeSettings {
     const count = Number(given.count);
     out[key] = {
       enabled: given.enabled === undefined ? fallback.enabled : Boolean(given.enabled),
-      count: isUnlimited(key)
-        ? 0
-        : !isFinite(count) || count < 1
-        ? fallback.count
-        : Math.min(Math.floor(count), MAX_PRIZE_COUNT),
+      count:
+        !isFinite(count) || count < 1
+          ? fallback.count
+          : Math.min(Math.floor(count), MAX_PRIZE_COUNT),
     };
   }
 
@@ -96,8 +87,6 @@ export interface PrizeStanding {
   key: PrizeKey;
   label: string;
   enabled: boolean;
-  unlimited: boolean;
-  /** 0 when unlimited */
   count: number;
   /** cards that actually take the prize, earliest first */
   winners: PrizeWinner[];
@@ -126,7 +115,6 @@ export function computeStandings(
 
   for (const key of PRIZE_ORDER) {
     const rule = settings[key];
-    const unlimited = isUnlimited(key);
 
     const completed: PrizeWinner[] = [];
 
@@ -157,33 +145,28 @@ export function computeStandings(
     const winners: PrizeWinner[] = [];
     const late: PrizeWinner[] = [];
 
-    if (unlimited) {
-      winners.push(...completed);
-    } else {
-      let i = 0;
-      while (i < completed.length) {
-        // everyone who finished on this same number
-        let j = i;
-        while (j < completed.length && completed[j].at === completed[i].at) j++;
+    let i = 0;
+    while (i < completed.length) {
+      // everyone who finished on this same number
+      let j = i;
+      while (j < completed.length && completed[j].at === completed[i].at) j++;
 
-        if (winners.length < rule.count) {
-          winners.push(...completed.slice(i, j));
-        } else {
-          late.push(...completed.slice(i, j));
-        }
-        i = j;
+      if (winners.length < rule.count) {
+        winners.push(...completed.slice(i, j));
+      } else {
+        late.push(...completed.slice(i, j));
       }
+      i = j;
     }
 
     standings[key] = {
       key,
       label: PRIZE_LABELS[key],
       enabled: rule.enabled,
-      unlimited,
-      count: unlimited ? 0 : rule.count,
+      count: rule.count,
       winners,
       late,
-      closed: rule.enabled && !unlimited && winners.length >= rule.count,
+      closed: rule.enabled && winners.length >= rule.count,
     };
   }
 
@@ -195,7 +178,6 @@ export interface PrizeStatus {
   key: PrizeKey;
   label: string;
   enabled: boolean;
-  unlimited: boolean;
   count: number;
   won: number;
   closed: boolean;
@@ -208,7 +190,6 @@ export function toStatus(standings: PrizeStandings): PrizeStatus[] {
       key,
       label: s.label,
       enabled: s.enabled,
-      unlimited: s.unlimited,
       count: s.count,
       won: s.winners.length,
       closed: s.closed,
