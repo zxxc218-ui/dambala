@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { getUserSession } from '@/lib/auth';
 import { clearSessionCache } from '@/lib/sessions';
+import { normalizePrizes, isMissingPrizesColumn, DEFAULT_PRIZES } from '@/lib/prizes';
 
 // GET: Fetch all sessions
 export async function GET(req: NextRequest) {
@@ -65,8 +66,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { name } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { name } = body || {};
     const sessionName = name || `جلسة سحب دمبلة - ${new Date().toLocaleString('ar-EG')}`;
+
+    // Prize rules chosen on the start screen. Anything odd falls back to the
+    // defaults rather than failing the start.
+    const prizes = normalizePrizes(body?.prizes);
 
     // 1. Finish only THIS club's earlier sessions — another club's live game
     //    must not be ended by someone else starting theirs.
@@ -83,15 +89,29 @@ export async function POST(req: NextRequest) {
     if (updateErr) throw updateErr;
 
     // 2. Create the new session in Supabase
-    const { data: newSession, error: createErr } = await supabase
+    const baseRow = {
+      name: sessionName,
+      status: 'active',
+      club_id: user.clubId,
+    };
+
+    let { data: newSession, error: createErr } = await supabase
       .from('draw_sessions')
-      .insert({
-        name: sessionName,
-        status: 'active',
-        club_id: user.clubId
-      })
+      .insert({ ...baseRow, prizes })
       .select()
       .single();
+
+    // The prizes column is added by db/prizes.sql. If the owner has not run it
+    // yet, start the game anyway — it simply plays on the default rules.
+    let prizesStored = true;
+    if (createErr && isMissingPrizesColumn(createErr)) {
+      prizesStored = false;
+      ({ data: newSession, error: createErr } = await supabase
+        .from('draw_sessions')
+        .insert(baseRow)
+        .select()
+        .single());
+    }
 
     if (createErr || !newSession) throw createErr || new Error('فشل بدء الجلسة في Supabase');
 
@@ -105,12 +125,17 @@ export async function POST(req: NextRequest) {
       startedAt: newSession.started_at,
       endedAt: newSession.ended_at,
       status: newSession.status,
-      numbers: [] as { number: number; drawOrder: number }[]
+      numbers: [] as { number: number; drawOrder: number }[],
+      prizes: prizesStored ? prizes : DEFAULT_PRIZES
     };
 
     return NextResponse.json({
       success: true,
       message: 'تم بدء جلسة سحب جديدة بنجاح في Supabase',
+      prizesStored,
+      prizesHint: prizesStored
+        ? undefined
+        : 'إعدادات الجوائز ما انحفظت لأن عمود prizes غير موجود. شغّل db/prizes.sql في Supabase مرة وحدة.',
       session: formattedSession
     });
   } catch (error: any) {
