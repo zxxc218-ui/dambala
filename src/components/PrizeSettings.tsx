@@ -1,13 +1,12 @@
 'use client';
 
-import { Minus, Plus, Infinity as InfinityIcon } from 'lucide-react';
+import { Minus, Plus } from 'lucide-react';
 
 /**
  * The prize rules panel.
  *
- * Mirrors src/lib/prizes.ts: every prize can be switched off, the line prizes
- * carry "how many times it pays", and الزوايا sits outside the counting —
- * whenever a card's corners come up, it wins.
+ * Mirrors src/lib/prizes.ts: every prize can be switched off and carries
+ * "how many times it pays" before it closes.
  */
 
 export type PrizeKey = 'row1' | 'row2' | 'row3' | 'corners' | 'fullCard';
@@ -37,14 +36,11 @@ const PRIZE_HINTS: Record<PrizeKey, string> = {
   fullCard: 'الـ 15 رقم كلها',
 };
 
-/** الزوايا لا تُعدّ — تربح كل ما تطلع. */
-export const UNLIMITED: PrizeKey[] = ['corners'];
-
 export const DEFAULT_PRIZES: PrizeSettings = {
   row1: { enabled: true, count: 1 },
   row2: { enabled: true, count: 1 },
   row3: { enabled: true, count: 1 },
-  corners: { enabled: true, count: 0 },
+  corners: { enabled: true, count: 1 },
   fullCard: { enabled: true, count: 1 },
 };
 
@@ -62,11 +58,10 @@ export function normalizePrizes(raw: any): PrizeSettings {
     const count = Number(given.count);
     out[key] = {
       enabled: given.enabled === undefined ? fallback.enabled : Boolean(given.enabled),
-      count: UNLIMITED.includes(key)
-        ? 0
-        : !isFinite(count) || count < 1
-        ? fallback.count
-        : Math.min(Math.floor(count), MAX_COUNT),
+      count:
+        !isFinite(count) || count < 1
+          ? fallback.count
+          : Math.min(Math.floor(count), MAX_COUNT),
     };
   }
   return out;
@@ -96,7 +91,6 @@ export default function PrizeSettingsPanel({ value, onChange, disabled, status }
     <div className="flex flex-col gap-2">
       {PRIZE_ORDER.map((key) => {
         const rule = value[key];
-        const unlimited = UNLIMITED.includes(key);
         const won = wonFor(key);
 
         return (
@@ -146,50 +140,40 @@ export default function PrizeSettingsPanel({ value, onChange, disabled, status }
               </div>
 
               {/* how many times it pays */}
-              {unlimited ? (
-                <div
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[10px] font-black flex-shrink-0"
-                  style={{ fontFamily: 'Cairo, sans-serif' }}
+              <div className="flex items-center gap-1 flex-shrink-0" style={{ direction: 'ltr' }}>
+                <button
+                  type="button"
+                  aria-label="إنقاص العدد"
+                  disabled={disabled || !rule.enabled || rule.count <= 1}
+                  onClick={() => bump(key, -1)}
+                  className="w-7 h-7 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 flex items-center justify-center disabled:opacity-30 hover:border-slate-700 active:scale-90 transition-all cursor-pointer"
                 >
-                  <InfinityIcon size={12} />
-                  <span>غير محدود</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1 flex-shrink-0" style={{ direction: 'ltr' }}>
-                  <button
-                    type="button"
-                    aria-label="إنقاص العدد"
-                    disabled={disabled || !rule.enabled || rule.count <= 1}
-                    onClick={() => bump(key, -1)}
-                    className="w-7 h-7 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 flex items-center justify-center disabled:opacity-30 hover:border-slate-700 active:scale-90 transition-all cursor-pointer"
-                  >
-                    <Minus size={13} />
-                  </button>
+                  <Minus size={13} />
+                </button>
 
-                  <input
-                    type="number"
-                    min={1}
-                    max={MAX_COUNT}
-                    value={rule.count}
-                    disabled={disabled || !rule.enabled}
-                    onChange={(e) => {
-                      const n = parseInt(e.target.value, 10);
-                      if (!isNaN(n)) set(key, { count: Math.min(Math.max(n, 1), MAX_COUNT) });
-                    }}
-                    className="w-11 text-center py-1 text-sm font-black bg-slate-900 border border-slate-800 text-emerald-400 rounded-lg outline-none focus:border-emerald-500 font-mono disabled:opacity-40"
-                  />
+                <input
+                  type="number"
+                  min={1}
+                  max={MAX_COUNT}
+                  value={rule.count}
+                  disabled={disabled || !rule.enabled}
+                  onChange={(e) => {
+                    const n = parseInt(e.target.value, 10);
+                    if (!isNaN(n)) set(key, { count: Math.min(Math.max(n, 1), MAX_COUNT) });
+                  }}
+                  className="w-11 text-center py-1 text-sm font-black bg-slate-900 border border-slate-800 text-emerald-400 rounded-lg outline-none focus:border-emerald-500 font-mono disabled:opacity-40"
+                />
 
-                  <button
-                    type="button"
-                    aria-label="زيادة العدد"
-                    disabled={disabled || !rule.enabled || rule.count >= MAX_COUNT}
-                    onClick={() => bump(key, 1)}
-                    className="w-7 h-7 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 flex items-center justify-center disabled:opacity-30 hover:border-slate-700 active:scale-90 transition-all cursor-pointer"
-                  >
-                    <Plus size={13} />
-                  </button>
-                </div>
-              )}
+                <button
+                  type="button"
+                  aria-label="زيادة العدد"
+                  disabled={disabled || !rule.enabled || rule.count >= MAX_COUNT}
+                  onClick={() => bump(key, 1)}
+                  className="w-7 h-7 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 flex items-center justify-center disabled:opacity-30 hover:border-slate-700 active:scale-90 transition-all cursor-pointer"
+                >
+                  <Plus size={13} />
+                </button>
+              </div>
             </div>
 
             {/* what has already been won, when a game is running */}
@@ -200,7 +184,7 @@ export default function PrizeSettingsPanel({ value, onChange, disabled, status }
               >
                 <span>فاز لحد الآن</span>
                 <span className={won > 0 ? 'text-emerald-400' : 'text-slate-600'}>
-                  {unlimited ? `${won} بطاقة` : `${won} من ${rule.count}`}
+                  {`${won} من ${rule.count}`}
                 </span>
               </div>
             )}
@@ -212,8 +196,7 @@ export default function PrizeSettingsPanel({ value, onChange, disabled, status }
         className="text-[9px] text-slate-500 leading-relaxed text-center mt-1"
         style={{ fontFamily: 'Cairo, sans-serif' }}
       >
-        العدد يعني كم بطاقة تربح هذا الخط قبل ما ينسد. الزوايا خارج العدّ — أي بطاقة تكمل زواياها
-        تربح.
+        العدد يعني كم بطاقة تربح هذه الجائزة قبل ما تنسد. تكدر تغيّره حتى وسط الجولة.
       </p>
     </div>
   );
