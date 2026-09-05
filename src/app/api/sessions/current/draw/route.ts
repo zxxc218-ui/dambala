@@ -120,7 +120,6 @@ export async function POST(req: NextRequest) {
       key: PrizeKey;
       place: number;
       count: number;
-      unlimited: boolean;
     }[] = [];
 
     if (completed.length > 0) {
@@ -147,7 +146,6 @@ export async function POST(req: NextRequest) {
           key: c.key,
           place: place + 1,
           count: standing.count,
-          unlimited: standing.unlimited,
         });
       }
     }
