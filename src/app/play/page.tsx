@@ -26,7 +26,6 @@ interface PrizeStatus {
   key: PrizeKey;
   label: string;
   enabled: boolean;
-  unlimited: boolean;
   count: number;
   won: number;
   closed: boolean;
@@ -40,7 +39,6 @@ interface Winner {
   /** which place this card took in its prize (1 = first) */
   place?: number;
   count?: number;
-  unlimited?: boolean;
   awarded?: Record<string, boolean>;
   paid?: boolean;
   row1?: boolean;
@@ -435,7 +433,6 @@ export default function PlayPage() {
       key,
       label: PRIZE_LABELS[key],
       enabled: prizes[key].enabled,
-      unlimited: key === 'corners',
       count: prizes[key].count,
       won: 0,
       closed: false,
@@ -600,7 +597,7 @@ export default function PlayPage() {
                         {p.label}
                       </span>
                       <span className="text-[10px] font-mono font-black flex-shrink-0" style={{ direction: 'ltr' }}>
-                        {p.unlimited ? `${p.won} ∞` : `${p.won}/${p.count}`}
+                        {`${p.won}/${p.count}`}
                       </span>
                     </div>
                   ))}
@@ -875,7 +872,7 @@ export default function PlayPage() {
                   >
                     <span className="font-bold text-slate-200 text-xs flex flex-col items-start gap-0.5">
                       <span>السيت: {formatSetNo(winner.setNo)} | كرت: {formatCardNo(winner.cardNo)}</span>
-                      {winner.place !== undefined && !winner.unlimited && winner.count ? (
+                      {winner.place !== undefined && winner.count ? (
                         <span className="text-[9px] font-black text-slate-500" style={{ fontFamily: 'Cairo, sans-serif' }}>
                           الفائز {winner.place} من {winner.count}
                         </span>
@@ -937,7 +934,7 @@ export default function PlayPage() {
                     >
                       <span className="truncate" style={{ fontFamily: 'Cairo, sans-serif' }}>{p.label}</span>
                       <span className="font-mono flex-shrink-0" style={{ direction: 'ltr' }}>
-                        {p.unlimited ? `${p.won} ∞` : `${p.won}/${p.count}`}
+                        {`${p.won}/${p.count}`}
                       </span>
                     </div>
                   ))}
