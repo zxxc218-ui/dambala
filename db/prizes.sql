@@ -9,15 +9,13 @@
 --    "row1":     { "enabled": true,  "count": 3 },
 --    "row2":     { "enabled": true,  "count": 2 },
 --    "row3":     { "enabled": false, "count": 1 },
---    "corners":  { "enabled": true,  "count": 0 },   -- الزوايا: غير محدودة
+--    "corners":  { "enabled": true,  "count": 2 },
 --    "fullCard": { "enabled": true,  "count": 1 }
 --  }
---
---  ملاحظة: الزوايا خارج العدّ — أي بطاقة تطلع زواياها تربح.
 -- ---------------------------------------------------------------------
 
 alter table public.draw_sessions
   add column if not exists prizes jsonb;
 
 comment on column public.draw_sessions.prizes is
-  'إعدادات جوائز الجلسة: تفعيل كل خط وعدد الفائزين المسموح به. الزوايا غير محدودة.';
+  'إعدادات جوائز الجلسة: تفعيل كل جائزة وعدد الفائزين المسموح به قبل ما تنسد.';
