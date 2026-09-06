@@ -143,7 +143,7 @@ export default function DrawDrum({
 }: Props) {
   const stageRef = useRef<HTMLDivElement | null>(null);
   const sphereRef = useRef<HTMLDivElement | null>(null);
-  const neckRef = useRef<HTMLDivElement | null>(null);
+  const bowlRef = useRef<HTMLDivElement | null>(null);
   const ballRefs = useRef(new Map<number, HTMLElement | null>());
 
   const [flights, setFlights] = useState<Flight[]>([]);
@@ -176,7 +176,7 @@ export default function DrawDrum({
     if (!stage || !sphere) return;
 
     const stageBox = stage.getBoundingClientRect();
-    const source = ballRefs.current.get(latest) ?? neckRef.current;
+    const source = ballRefs.current.get(latest) ?? bowlRef.current;
     if (!source) return;
 
     const from = source.getBoundingClientRect();
@@ -241,6 +241,7 @@ export default function DrawDrum({
 
         {/* ------------------------------- the bowl ------------------------------- */}
         <div
+          ref={bowlRef}
           className="relative w-full max-w-[340px] aspect-square rounded-full"
           style={{
             background:
@@ -318,123 +319,118 @@ export default function DrawDrum({
           })}
         </div>
 
-        {/* ------------------------- the neck under the bowl ------------------------- */}
-        <div
-          ref={neckRef}
-          className="relative -mt-px w-12 h-5 border-x border-slate-700/60"
-          style={{
-            background: 'linear-gradient(180deg, #070b13 0%, #0b1220 100%)',
-            clipPath: 'polygon(0 0, 100% 0, 80% 100%, 20% 100%)',
-          }}
-        />
 
-        {/* ------------------------ the ball that just dropped ------------------------ */}
-        <div
-          ref={sphereRef}
-          className="relative rounded-full flex items-center justify-center -mt-1"
-          style={{
-            width: SPHERE,
-            height: SPHERE,
-            background: latest
-              ? BALL_SURFACE
-              : 'radial-gradient(circle at 32% 28%, #1e293b 0%, #0f172a 60%, #020617 100%)',
-            boxShadow: latest
-              ? '0 6px 18px rgba(0,0,0,0.45), 0 0 0 3px rgba(16,185,129,0.16)'
-              : 'inset 0 3px 10px rgba(0,0,0,0.6), 0 0 0 3px rgba(30,41,59,0.5)',
-          }}
-        >
-          {latest && !inFlight ? (
-            <span className="text-slate-900 font-mono font-black text-4xl tracking-tighter animate-[popIn_0.25s_cubic-bezier(0.175,0.885,0.32,1.275)]">
-              {latest}
-            </span>
-          ) : latest ? (
-            <span className="opacity-0 text-4xl font-black">{latest}</span>
-          ) : (
-            <span className="text-slate-700 text-4xl font-black">-</span>
-          )}
+        {/* ------ the ball that dropped, and beside it the ones already out ------ */}
+        <div className="w-full max-w-[340px] mt-3 flex items-stretch gap-3">
+          <div
+            ref={sphereRef}
+            className="relative rounded-full flex items-center justify-center flex-shrink-0"
+            style={{
+              width: SPHERE,
+              height: SPHERE,
+              background: latest
+                ? BALL_SURFACE
+                : 'radial-gradient(circle at 32% 28%, #1e293b 0%, #0f172a 60%, #020617 100%)',
+              boxShadow: latest
+                ? '0 6px 18px rgba(0,0,0,0.45), 0 0 0 3px rgba(16,185,129,0.16)'
+                : 'inset 0 3px 10px rgba(0,0,0,0.6), 0 0 0 3px rgba(30,41,59,0.5)',
+            }}
+          >
+            {latest && !inFlight ? (
+              <span className="text-slate-900 font-mono font-black text-4xl tracking-tighter animate-[popIn_0.25s_cubic-bezier(0.175,0.885,0.32,1.275)]">
+                {latest}
+              </span>
+            ) : latest ? (
+              <span className="opacity-0 text-4xl font-black">{latest}</span>
+            ) : (
+              <span className="text-slate-700 text-4xl font-black">-</span>
+            )}
+          </div>
+
+          {/* The balls already out sit in the room beside the big one rather than
+              in a block under it, which is a whole section of scrolling saved. */}
+          <div className="flex-1 min-w-0 flex flex-col" style={{ height: SPHERE }}>
+            <div className="flex items-baseline justify-between mb-1">
+              <h4
+                className="text-[10px] font-bold text-slate-400"
+                style={{ fontFamily: 'Cairo, sans-serif' }}
+              >
+                النازلة
+              </h4>
+              <span className="text-[10px] font-bold text-slate-500 font-mono">
+                {drawnSet.size}/90
+              </span>
+            </div>
+
+            <div
+              className="flex-1 flex flex-wrap gap-1 content-start rounded-xl bg-slate-950/50 p-1.5 overflow-y-auto"
+              style={{ direction: 'ltr', boxShadow: 'inset 0 2px 7px rgba(0,0,0,0.4)' }}
+            >
+              {recent.length === 0 ? (
+                <span
+                  className="w-full self-center text-center text-[10px] text-slate-600"
+                  style={{ direction: 'rtl', fontFamily: 'Cairo, sans-serif' }}
+                >
+                  ما نزلت ولا كرة
+                </span>
+              ) : (
+                recent.map((n) => {
+                  const isLatest = n.number === latest;
+                  return (
+                    <div
+                      key={n.drawOrder}
+                      title={`الكرة رقم ${n.drawOrder} بالترتيب`}
+                      className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black text-slate-900 ${
+                        isLatest ? 'ring-2 ring-amber-400 animate-[popIn_0.25s_ease-out]' : ''
+                      }`}
+                      style={{
+                        background: isLatest
+                          ? 'radial-gradient(circle at 32% 28%, #fef3c7 0%, #fcd34d 45%, #f59e0b 100%)'
+                          : 'radial-gradient(circle at 32% 28%, #d1fae5 0%, #6ee7b7 45%, #10b981 100%)',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.35)',
+                      }}
+                    >
+                      {n.number}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
         </div>
 
-      <div className="flex flex-col gap-2 w-full max-w-[340px] mt-4">
-        <button
-          onClick={onRandom}
-          disabled={drawing || !active || remaining === 0}
-          className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-600 text-slate-950 font-black py-3 px-6 rounded-xl text-sm transition-all active:scale-[0.98] cursor-pointer"
-          style={{ fontFamily: 'Cairo, sans-serif' }}
-        >
-          {drawing ? 'جاري السحب...' : 'اسحب كرة'}
-        </button>
+        {/* two controls in one row, so nothing is pushed off the first screen */}
+        <div className="flex gap-2 w-full max-w-[340px] mt-3">
+          <button
+            onClick={onRandom}
+            disabled={drawing || !active || remaining === 0}
+            className="flex-1 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-600 text-slate-950 font-black py-3 px-4 rounded-xl text-sm transition-all active:scale-[0.98] cursor-pointer"
+            style={{ fontFamily: 'Cairo, sans-serif' }}
+          >
+            {drawing ? 'جاري السحب...' : 'اسحب كرة'}
+          </button>
 
-        <button
-          onClick={onUndo}
-          disabled={undoing || drawnSet.size === 0}
-          className="w-full flex items-center justify-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-amber-400 disabled:opacity-35 disabled:cursor-not-allowed font-bold py-2.5 px-4 rounded-xl text-[11px] transition-all active:scale-[0.98] cursor-pointer"
-          style={{ fontFamily: 'Cairo, sans-serif' }}
-        >
-          <Undo2 size={14} />
-          {undoing ? 'جاري الإلغاء...' : latest ? `رجّع آخر كرة (${latest})` : 'رجّع آخر كرة'}
-        </button>
+          <button
+            onClick={onUndo}
+            disabled={undoing || drawnSet.size === 0}
+            aria-label="رجّع آخر كرة"
+            className="flex items-center justify-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-amber-400 disabled:opacity-35 disabled:cursor-not-allowed font-bold py-3 px-4 rounded-xl text-[11px] transition-all active:scale-[0.98] cursor-pointer flex-shrink-0"
+            style={{ fontFamily: 'Cairo, sans-serif' }}
+          >
+            <Undo2 size={14} />
+            {undoing ? '...' : latest ? `رجّع (${latest})` : 'رجّع'}
+          </button>
+        </div>
 
         {pendingCount > 0 && (
           <span
-            className="text-center text-[10px] text-slate-500 font-bold"
+            className="mt-2 text-[10px] text-slate-500 font-bold"
             style={{ fontFamily: 'Cairo, sans-serif' }}
           >
             جاري الحفظ… ({pendingCount})
           </span>
         )}
       </div>
-
-        {/* --------------- the tray at the end of the drum, attached to it --------------- */}
-        <div className="w-full mt-4 pt-3 border-t border-slate-800/80">
-          <div className="flex items-center justify-between mb-2.5">
-            <h4
-              className="text-[11px] font-bold text-slate-300"
-              style={{ fontFamily: 'Cairo, sans-serif' }}
-            >
-              الكرات النازلة
-            </h4>
-            <span className="text-[10px] font-bold text-slate-400 font-mono">
-              {drawnSet.size} / 90
-            </span>
-          </div>
-
-          {recent.length === 0 ? (
-            <p
-              className="text-slate-500 text-[11px] text-center py-3"
-              style={{ fontFamily: 'Cairo, sans-serif' }}
-            >
-              الدورق ممتلئ — دوس كرة أو اسحب وحدة.
-            </p>
-          ) : (
-            <div
-              className="flex flex-wrap gap-1.5 rounded-xl bg-slate-950/50 p-2.5"
-              style={{ direction: 'ltr', boxShadow: 'inset 0 2px 7px rgba(0,0,0,0.4)' }}
-            >
-              {recent.map((n) => {
-                const isLatest = n.number === latest;
-                return (
-                  <div
-                    key={n.drawOrder}
-                    title={`الكرة رقم ${n.drawOrder} بالترتيب`}
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black text-slate-900 ${
-                      isLatest ? 'ring-2 ring-amber-400 animate-[popIn_0.25s_ease-out]' : ''
-                    }`}
-                    style={{
-                      background: isLatest
-                        ? 'radial-gradient(circle at 32% 28%, #fef3c7 0%, #fcd34d 45%, #f59e0b 100%)'
-                        : 'radial-gradient(circle at 32% 28%, #d1fae5 0%, #6ee7b7 45%, #10b981 100%)',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.35)',
-                    }}
-                  >
-                    {n.number}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* ============================== balls in mid-air ============================== */}
       {flights.map((f) => (
         <div
