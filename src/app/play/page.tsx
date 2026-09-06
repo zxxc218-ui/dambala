@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
-import { Play, Pause, RotateCcw, Award, Sparkles, Loader2, Plus, X, Undo2, Gift, Check } from 'lucide-react';
+import { Play, Pause, RotateCcw, Award, Sparkles, Loader2, X, Undo2, Gift, Check, SlidersHorizontal } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DrawDrum from '@/components/DrawDrum';
+import Drawer from '@/components/Drawer';
 import PrizeSettingsPanel, {
   DEFAULT_PRIZES,
   PRIZE_LABELS,
@@ -79,6 +80,8 @@ export default function PlayPage() {
   const [draftPrizes, setDraftPrizes] = useState<PrizeSettings>(DEFAULT_PRIZES);
   const [savingPrizes, setSavingPrizes] = useState(false);
   const [prizeNotice, setPrizeNotice] = useState('');
+  /** the slide-over holding the session controls */
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // Fetch current session on mount
   useEffect(() => {
@@ -504,61 +507,34 @@ export default function PlayPage() {
           /* PLAY SESSION RUNNING */
           <div className="flex flex-col gap-4">
             
-            {/* Top Control Header Card */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col gap-3 shadow-md">
-              <div className="flex justify-between items-start">
-                <div className="text-right">
-                  <span className="text-[10px] text-slate-400 font-bold block" style={{ fontFamily: 'Cairo, sans-serif' }}>جلسة السحب الحالية</span>
-                  <h2 className="text-sm font-black text-slate-100 mt-0.5" style={{ fontFamily: 'Cairo, sans-serif' }}>{session.name}</h2>
-                </div>
-                <div className={`px-2.5 py-1 rounded-full font-bold text-[10px] ${
-                  session.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                }`} style={{ fontFamily: 'Cairo, sans-serif' }}>
-                  {session.status === 'active' ? 'نشط' : 'متوقف مؤقتا'}
-                </div>
-              </div>
+            {/* A slim bar: the game keeps the screen, the rest lives behind it */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl px-3 py-2.5 flex items-center justify-between gap-3">
+              <button
+                onClick={() => setMenuOpen(true)}
+                className="flex items-center gap-1.5 py-1.5 px-2.5 text-[11px] font-bold text-slate-300 border border-slate-700 hover:bg-slate-800 rounded-lg transition-all cursor-pointer flex-shrink-0"
+                style={{ fontFamily: 'Cairo, sans-serif' }}
+              >
+                <SlidersHorizontal size={13} />
+                <span>الإعدادات</span>
+              </button>
 
-              <div className="grid grid-cols-2 gap-2 mt-1">
-                <button
-                  onClick={openPrizeEditor}
-                  className="col-span-2 flex items-center justify-center gap-1.5 py-2 px-3 text-[11px] font-extrabold border border-amber-500/25 hover:border-amber-500/45 text-amber-400 bg-amber-500/5 rounded-xl transition-all cursor-pointer"
+              <div className="flex items-center gap-2 min-w-0">
+                <h2
+                  className="text-[11px] font-bold text-slate-300 truncate"
                   style={{ fontFamily: 'Cairo, sans-serif' }}
                 >
-                  <Gift size={13} /> إعدادات الجوائز
-                </button>
-
-                <button
-                  onClick={handleCheckAllWinners}
-                  className="flex items-center justify-center gap-1.5 py-2 px-3 text-[11px] font-extrabold border border-cyan-500/20 hover:border-cyan-500/40 text-cyan-400 bg-cyan-500/5 rounded-xl transition-all cursor-pointer"
+                  {session.name}
+                </h2>
+                <span
+                  className={`px-2 py-0.5 rounded-full font-bold text-[9px] flex-shrink-0 ${
+                    session.status === 'active'
+                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                  }`}
                   style={{ fontFamily: 'Cairo, sans-serif' }}
                 >
-                  <Award size={13} /> فحص الفائزين
-                </button>
-
-                <button 
-                  onClick={handleToggleStatus} 
-                  className="flex items-center justify-center gap-1.5 py-2 px-3 text-[11px] font-bold border border-slate-700 hover:bg-slate-800 text-slate-300 rounded-xl transition-all cursor-pointer"
-                  style={{ fontFamily: 'Cairo, sans-serif' }}
-                >
-                  {session.status === 'active' ? <Pause size={13} /> : <Play size={13} />}
-                  <span>{session.status === 'active' ? 'إيقاف مؤقت' : 'استئناف'}</span>
-                </button>
-
-                <button 
-                  onClick={handleResetSession} 
-                  className="flex items-center justify-center gap-1.5 py-2 px-3 text-[11px] font-bold border border-red-500/20 hover:border-red-500/30 text-red-400 bg-red-500/5 rounded-xl transition-all cursor-pointer"
-                  style={{ fontFamily: 'Cairo, sans-serif' }}
-                >
-                  <RotateCcw size={13} /> إعادة تصفير الجولة
-                </button>
-
-                <button 
-                  onClick={handleFinishSession} 
-                  className="py-2 px-3 text-[11px] font-bold bg-red-500/20 border border-red-500/30 hover:bg-red-500 hover:text-white text-red-400 rounded-xl transition-all cursor-pointer"
-                  style={{ fontFamily: 'Cairo, sans-serif' }}
-                >
-                  إنهاء وإغلاق الجلسة
-                </button>
+                  {session.status === 'active' ? 'نشط' : 'متوقف'}
+                </span>
               </div>
             </div>
 
@@ -574,42 +550,30 @@ export default function PlayPage() {
               </div>
             )}
 
-            {/* Live prize board — what is still open and what has gone */}
-            {prizeBoard.length > 0 && (
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-                <h3 className="text-xs font-bold text-slate-300 mb-3 flex items-center gap-1.5" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                  <Gift size={14} className="text-amber-400" /> الجوائز:
-                </h3>
-
-                <div className="grid grid-cols-2 gap-2">
-                  {prizeBoard.map((p) => (
-                    <div
-                      key={p.key}
-                      className={`px-2.5 py-2 rounded-xl border flex items-center justify-between gap-2 ${
-                        p.closed
-                          ? 'bg-slate-950/60 border-slate-850 text-slate-500'
-                          : p.won > 0
-                          ? 'bg-emerald-500/5 border-emerald-500/25 text-emerald-400'
-                          : 'bg-slate-950 border-slate-800 text-slate-300'
-                      }`}
-                    >
-                      <span className="text-[10px] font-black truncate" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                        {p.label}
-                      </span>
-                      <span className="text-[10px] font-mono font-black flex-shrink-0" style={{ direction: 'ltr' }}>
-                        {`${p.won}/${p.count}`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                {prizeBoard.some((p) => p.closed) && (
-                  <p className="mt-2.5 text-[9px] text-slate-500 text-center" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                    الجائزة الرمادية مكتملة — ما عاد تنبّه على فائز جديد.
-                  </p>
-                )}
-              </div>
-            )}
+            {/* Typing a number is the fastest way in, so it comes first */}
+            <form onSubmit={handleAddManualNumber} className="flex gap-2">
+              <input
+                type="number"
+                inputMode="numeric"
+                min="1"
+                max="90"
+                value={manualNumber}
+                onChange={(e) => setManualNumber(e.target.value)}
+                placeholder="اكتب الرقم (1 - 90)"
+                className="w-full px-4 py-3 text-base font-black text-center rounded-xl border border-slate-800 bg-slate-950 text-slate-100 outline-none focus:border-emerald-500 transition-colors"
+                disabled={session.status !== 'active'}
+                required
+                style={{ fontFamily: 'Cairo, sans-serif' }}
+              />
+              <button
+                type="submit"
+                className="px-6 py-3 text-sm font-black bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-600 text-slate-950 rounded-xl transition-all active:scale-95 cursor-pointer flex-shrink-0"
+                disabled={session.status !== 'active'}
+                style={{ fontFamily: 'Cairo, sans-serif' }}
+              >
+                إضافة
+              </button>
+            </form>
 
             {/* The drum: balls live here, and a drawn one flies out into the sphere */}
             <DrawDrum
@@ -624,36 +588,109 @@ export default function PlayPage() {
               onUndo={handleUndoLast}
             />
 
-            {/* Manual Draw Input Form */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col gap-3">
-              <h3 className="text-xs font-bold text-slate-300 flex items-center gap-1.5" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                <Plus size={14} className="text-emerald-400" /> إضافة رقم مسحوب يدوياً:
+          </div>
+        )}
+
+        {/* ---------------- SLIDE-OVER: everything that is not the board ---------------- */}
+        {session && (
+        <Drawer
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          title="إعدادات الجلسة"
+          subtitle={session?.name}
+        >
+            {/* Live prize board — what is still open and what has gone */}
+          {prizeBoard.length > 0 && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+              <h3 className="text-xs font-bold text-slate-300 mb-3 flex items-center gap-1.5" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                <Gift size={14} className="text-amber-400" /> الجوائز:
               </h3>
 
-              <form onSubmit={handleAddManualNumber} className="flex gap-2">
-                <input
-                  type="number"
-                  min="1"
-                  max="90"
-                  value={manualNumber}
-                  onChange={(e) => setManualNumber(e.target.value)}
-                  placeholder="رقم (1-90)"
-                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-800 bg-slate-950 text-slate-100 outline-none focus:border-emerald-500 transition-colors"
-                  disabled={session.status !== 'active'}
-                  required
-                />
-                <button
-                  type="submit"
-                  className="px-5 py-2 text-xs font-black bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-xl transition-all active:scale-95 cursor-pointer flex-shrink-0"
-                  disabled={session.status !== 'active'}
-                  style={{ fontFamily: 'Cairo, sans-serif' }}
-                >
-                  إضافة
-                </button>
-              </form>
-            </div>
+              <div className="grid grid-cols-2 gap-2">
+                {prizeBoard.map((p) => (
+                  <div
+                    key={p.key}
+                    className={`px-2.5 py-2 rounded-xl border flex items-center justify-between gap-2 ${
+                      p.closed
+                        ? 'bg-slate-950/60 border-slate-850 text-slate-500'
+                        : p.won > 0
+                        ? 'bg-emerald-500/5 border-emerald-500/25 text-emerald-400'
+                        : 'bg-slate-950 border-slate-800 text-slate-300'
+                    }`}
+                  >
+                    <span className="text-[10px] font-black truncate" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                      {p.label}
+                    </span>
+                    <span className="text-[10px] font-mono font-black flex-shrink-0" style={{ direction: 'ltr' }}>
+                      {`${p.won}/${p.count}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
 
+              {prizeBoard.some((p) => p.closed) && (
+                <p className="mt-2.5 text-[9px] text-slate-500 text-center" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                  الجائزة الرمادية مكتملة — ما عاد تنبّه على فائز جديد.
+                </p>
+              )}
+            </div>
+          )}
+
+              <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => {
+                setMenuOpen(false);
+                openPrizeEditor();
+              }}
+              className="col-span-2 flex items-center justify-center gap-1.5 py-2 px-3 text-[11px] font-extrabold border border-amber-500/25 hover:border-amber-500/45 text-amber-400 bg-amber-500/5 rounded-xl transition-all cursor-pointer"
+              style={{ fontFamily: 'Cairo, sans-serif' }}
+            >
+              <Gift size={13} /> إعدادات الجوائز
+            </button>
+
+            <button
+              onClick={() => {
+                setMenuOpen(false);
+                handleCheckAllWinners();
+              }}
+              className="flex items-center justify-center gap-1.5 py-2 px-3 text-[11px] font-extrabold border border-cyan-500/20 hover:border-cyan-500/40 text-cyan-400 bg-cyan-500/5 rounded-xl transition-all cursor-pointer"
+              style={{ fontFamily: 'Cairo, sans-serif' }}
+            >
+              <Award size={13} /> فحص الفائزين
+            </button>
+
+            <button 
+              onClick={handleToggleStatus} 
+              className="flex items-center justify-center gap-1.5 py-2 px-3 text-[11px] font-bold border border-slate-700 hover:bg-slate-800 text-slate-300 rounded-xl transition-all cursor-pointer"
+              style={{ fontFamily: 'Cairo, sans-serif' }}
+            >
+              {session.status === 'active' ? <Pause size={13} /> : <Play size={13} />}
+              <span>{session.status === 'active' ? 'إيقاف مؤقت' : 'استئناف'}</span>
+            </button>
+
+            <button 
+              onClick={() => {
+                setMenuOpen(false);
+                handleResetSession();
+              }}
+              className="flex items-center justify-center gap-1.5 py-2 px-3 text-[11px] font-bold border border-red-500/20 hover:border-red-500/30 text-red-400 bg-red-500/5 rounded-xl transition-all cursor-pointer"
+              style={{ fontFamily: 'Cairo, sans-serif' }}
+            >
+              <RotateCcw size={13} /> إعادة تصفير الجولة
+            </button>
+
+            <button 
+              onClick={() => {
+                setMenuOpen(false);
+                handleFinishSession();
+              }}
+              className="py-2 px-3 text-[11px] font-bold bg-red-500/20 border border-red-500/30 hover:bg-red-500 hover:text-white text-red-400 rounded-xl transition-all cursor-pointer"
+              style={{ fontFamily: 'Cairo, sans-serif' }}
+            >
+              إنهاء وإغلاق الجلسة
+            </button>
           </div>
+        </Drawer>
         )}
 
         {/* -------------------- 0. POPUP MODAL: PRIZE RULES -------------------- */}
