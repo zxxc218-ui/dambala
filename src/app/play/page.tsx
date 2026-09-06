@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
-import { Play, Pause, RotateCcw, Award, History, Sparkles, Loader2, Plus, X, ListRestart, Undo2, Gift, Check } from 'lucide-react';
+import { Play, Pause, RotateCcw, Award, Sparkles, Loader2, Plus, X, Undo2, Gift, Check } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import DrawDrum from '@/components/DrawDrum';
 import PrizeSettingsPanel, {
   DEFAULT_PRIZES,
   PRIZE_LABELS,
@@ -421,7 +422,6 @@ export default function PlayPage() {
   const sessionNumbers = session?.numbers ?? [];
   const drawnNumbers = sessionNumbers.map(n => n.number);
   const latestDraw = sessionNumbers.length > 0 ? sessionNumbers[sessionNumbers.length - 1].number : null;
-  const previousDraw = sessionNumbers.length > 1 ? sessionNumbers[sessionNumbers.length - 2].number : null;
 
   /**
    * The prize row shown while playing. Falls back to the rules alone (nothing
@@ -611,58 +611,18 @@ export default function PlayPage() {
               </div>
             )}
 
-            {/* Main Interactive Sphere & Draw Area */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-center relative overflow-hidden flex flex-col items-center">
-              
-              <span className="text-[11px] font-bold text-slate-400 tracking-wider block" style={{ fontFamily: 'Cairo, sans-serif' }}>الرقم الحالي المسحوب</span>
-              
-              {/* Massive Sphere */}
-              <div className="relative w-40 h-40 rounded-full bg-slate-950 text-slate-100 flex items-center justify-center text-6xl font-black my-5 shadow-2xl border-4 border-slate-800 shadow-emerald-500/5 animate-[popIn_0.3s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards]">
-                {latestDraw ? (
-                  <span className="text-emerald-400 font-mono tracking-tighter">{latestDraw}</span>
-                ) : (
-                  <span className="text-slate-700">-</span>
-                )}
-                {/* Glowing ring */}
-                <div className="absolute inset-0 rounded-full border border-emerald-500/20 animate-ping opacity-30 pointer-events-none"></div>
-              </div>
-
-              <div className="flex justify-around w-full text-xs text-slate-400 font-semibold mb-4" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                <div>الرقم السابق: <strong className="text-slate-200">{previousDraw || '-'}</strong></div>
-                <div>ترتيب السحب: <strong className="text-slate-200">{drawnNumbers.length} / 90</strong></div>
-              </div>
-
-              {/* Draw button is big and bold */}
-              <button
-                onClick={handleDrawRandomNumber}
-                disabled={drawing || session.status !== 'active' || drawnNumbers.length >= 90}
-                className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-600 text-slate-950 font-black py-4 px-6 rounded-2xl text-base transition-all active:scale-[0.98] shadow-lg shadow-emerald-500/10 cursor-pointer"
-                style={{ fontFamily: 'Cairo, sans-serif' }}
-              >
-                {drawing ? 'جاري سحب رقم...' : 'سحب رقم عشوائي 🎲'}
-              </button>
-
-              {/* Undo the last number — for a wrong call */}
-              <button
-                onClick={handleUndoLast}
-                disabled={undoing || drawnNumbers.length === 0}
-                className="mt-2 w-full flex items-center justify-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-amber-400 disabled:opacity-35 disabled:cursor-not-allowed font-black py-2.5 px-4 rounded-xl text-xs transition-all active:scale-[0.98] cursor-pointer"
-                style={{ fontFamily: 'Cairo, sans-serif' }}
-              >
-                <Undo2 size={14} />
-                {undoing
-                  ? 'جاري الإلغاء...'
-                  : latestDraw
-                  ? `إلغاء آخر رقم (${latestDraw})`
-                  : 'إلغاء آخر رقم'}
-              </button>
-
-              {pendingCount > 0 && (
-                <span className="mt-2 text-[10px] text-slate-500 font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                  جاري الحفظ… ({pendingCount})
-                </span>
-              )}
-            </div>
+            {/* The drum: balls live here, and a drawn one flies out into the sphere */}
+            <DrawDrum
+              drawn={sessionNumbers}
+              latest={latestDraw}
+              active={session.status === 'active'}
+              drawing={drawing}
+              undoing={undoing}
+              pendingCount={pendingCount}
+              onPick={handleNumberClick}
+              onRandom={handleDrawRandomNumber}
+              onUndo={handleUndoLast}
+            />
 
             {/* Manual Draw Input Form */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col gap-3">
@@ -691,77 +651,6 @@ export default function PlayPage() {
                   إضافة
                 </button>
               </form>
-            </div>
-
-            {/* Click to Draw / 1-90 Compact Grid */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-              <h3 className="text-xs font-bold text-slate-300 mb-3 flex items-center gap-1.5" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                <ListRestart size={14} className="text-emerald-400" /> انقر على الرقم لتحديده مباشرة (بدون كتابة):
-              </h3>
-
-              <div className="grid grid-cols-10 gap-1" style={{ direction: 'ltr' }}>
-                {Array.from({ length: 90 }, (_, i) => i + 1).map((n) => {
-                  const isDrawn = drawnNumbers.includes(n);
-                  const isLatest = latestDraw === n;
-
-                  return (
-                    <button
-                      key={n}
-                      onClick={() => handleNumberClick(n)}
-                      className={`aspect-square w-full rounded flex items-center justify-center text-[11px] font-black transition-all cursor-pointer ${
-                        isLatest 
-                          ? 'bg-amber-400 text-slate-950 font-extrabold ring-2 ring-amber-400/50 scale-110 z-10' 
-                          : isDrawn 
-                          ? 'bg-emerald-500 text-slate-950 font-extrabold pointer-events-none' 
-                          : 'bg-slate-950 hover:bg-slate-800 text-slate-400 border border-slate-800/80'
-                      }`}
-                      disabled={isDrawn || session.status !== 'active'}
-                    >
-                      {n}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="flex gap-4 mt-3.5 text-[9px] font-bold justify-center text-slate-400" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                <div className="flex items-center gap-1">
-                  <div className="w-2.5 h-2.5 rounded bg-emerald-500"></div>
-                  <span>مسحوب ({drawnNumbers.length})</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-2.5 h-2.5 rounded bg-amber-400"></div>
-                  <span>الأخير</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-2.5 h-2.5 rounded bg-slate-950 border border-slate-800"></div>
-                  <span>متبقي ({90 - drawnNumbers.length})</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Recent Logs (Mobile: displays as inline capsules) */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-              <h3 className="text-xs font-bold text-slate-300 mb-3 flex items-center gap-1.5" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                <History size={14} className="text-emerald-400" /> سجل السحب تنازلياً:
-              </h3>
-
-              {sessionNumbers.length === 0 ? (
-                <p className="text-slate-500 text-xs text-center py-2" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                  لا توجد أرقام مسحوبة حالياً
-                </p>
-              ) : (
-                <div className="flex flex-wrap gap-1.5 justify-end" style={{ direction: 'ltr' }}>
-                  {[...sessionNumbers].reverse().map((n) => (
-                    <div 
-                      key={n.drawOrder} 
-                      className="px-2 py-1 bg-slate-950 border border-slate-850 rounded-lg text-[10px] font-black flex items-center gap-1"
-                    >
-                      <span className="text-slate-500 text-[9px]">#{n.drawOrder}</span>
-                      <span className="text-emerald-400 font-mono font-extrabold">{n.number}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
 
           </div>
