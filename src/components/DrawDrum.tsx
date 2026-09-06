@@ -6,11 +6,11 @@ import { Undo2 } from 'lucide-react';
 /**
  * The drum — one connected object.
  *
- * A round glass bowl holds all 90 balls. Drawing one — by tapping it or by
- * pulling a random one — makes that ball fly out, drop through the neck under
- * the bowl, land as the big ball, and settle in the tray attached below. The
- * socket it left stays empty, so the bowl visibly empties as the game runs and
- * an undo puts the ball back in it.
+ * A glass box holds all 90 balls, laid out 1-90 in reading order. Drawing one —
+ * by tapping it or by pulling a random one — makes that ball fly out, land as
+ * the big ball beside the box, and settle in the tray next to it. The socket it
+ * left stays empty, so the box visibly empties as the game runs and an undo
+ * puts the ball back in it.
  *
  * The flight is decoration only: the number is registered the moment it is
  * picked, and the animation never delays the next tap.
@@ -54,81 +54,12 @@ const SPHERE = 92;
 const BALL_SURFACE =
   'radial-gradient(circle at 32% 28%, #ffffff 0%, #e2e8f0 42%, #94a3b8 100%)';
 
-/* --------------------------------------------------------------------------
- * Where each ball sits inside the round bowl.
- *
- * Balls are laid out in rings from the rim inwards, each ring starting at the
- * top and running clockwise, and the numbers stay in order — so a specific
- * number can still be found by eye, which a jumbled tombola would not allow.
- * Everything is a fraction of the bowl's width, so the layout is the same at
- * any size.
- * ----------------------------------------------------------------------- */
-
-/** ball diameter, as a fraction of the bowl */
-const BALL = 0.084;
-/** breathing room between rings and between neighbours in a ring */
-const GAP = 1.03;
-
-interface Seat {
-  n: number;
-  /** centre, as a percentage of the bowl box */
-  x: number;
-  y: number;
-}
 
 /**
- * Server and client must serialise these percentages to the same string, or
- * React reports a hydration mismatch and stops patching the tree.
+ * The box is fluid but capped, so the number inside a ball is sized off the
+ * viewport and clamped at both ends rather than measured on every resize.
  */
-const round = (v: number) => Math.round(v * 1000) / 1000;
-
-function buildSeats(total: number): Seat[] {
-  // ring radii, from the rim inwards
-  const radii: number[] = [];
-  let r = 0.5 - BALL / 2 - 0.024; // clearance so no ball touches the glass // keep the outer ring off the glass
-  while (r > BALL * 0.6) {
-    radii.push(r);
-    r -= BALL * GAP;
-  }
-
-  const capacity = radii.map((rr) => Math.max(1, Math.floor((2 * Math.PI * rr) / (BALL * GAP))));
-  const total_capacity = capacity.reduce((a, b) => a + b, 0);
-
-  // Spread the balls across every ring in proportion to its circumference
-  // rather than packing the rim full first, which would leave the middle empty.
-  const perRing = capacity.map((c) => Math.floor((total * c) / total_capacity));
-  let spare = total - perRing.reduce((a, b) => a + b, 0);
-  for (let i = 0; spare > 0; i = (i + 1) % perRing.length) {
-    if (perRing[i] < capacity[i]) {
-      perRing[i]++;
-      spare--;
-    }
-  }
-
-  const seats: Seat[] = [];
-  let n = 0;
-  radii.forEach((rr, ring) => {
-    for (let i = 0; i < perRing[ring]; i++) {
-      // start at 12 o'clock, run clockwise
-      const angle = -Math.PI / 2 + (i * 2 * Math.PI) / perRing[ring];
-      seats.push({
-        n: ++n,
-        x: round((0.5 + rr * Math.cos(angle)) * 100),
-        y: round((0.5 + rr * Math.sin(angle)) * 100),
-      });
-    }
-  });
-
-  return seats;
-}
-
-const SEATS = buildSeats(90);
-
-/**
- * The bowl is fluid but capped, so the number inside a ball is sized off the
- * viewport and clamped at both ends rather than measured every resize.
- */
-const BALL_FONT = 'clamp(9px, 3.1vw, 17px)';
+const BALL_FONT = 'clamp(8px, 2.6vw, 13px)';
 
 export default function DrawDrum({
   drawn,
@@ -239,86 +170,76 @@ export default function DrawDrum({
           </span>
         </div>
 
-        {/* ------------------------------- the bowl ------------------------------- */}
+        {/* ------------------------------- the box ------------------------------- */}
         <div
           ref={bowlRef}
-          className="relative w-full max-w-[340px] aspect-square rounded-full"
+          className="relative w-full max-w-[340px] rounded-2xl p-3"
           style={{
             background:
-              'radial-gradient(circle at 34% 20%, #1c2740 0%, #111b2c 55%, #0a1120 100%)',
+              'radial-gradient(120% 90% at 34% 12%, #1c2740 0%, #111b2c 55%, #0a1120 100%)',
             boxShadow:
-              'inset 0 1px 0 rgba(255,255,255,0.07), inset 0 12px 28px rgba(0,0,0,0.45),' +
+              'inset 0 1px 0 rgba(255,255,255,0.07), inset 0 10px 24px rgba(0,0,0,0.45),' +
               ' 0 0 0 1px rgba(148,163,184,0.16), 0 0 0 5px rgba(15,23,42,0.9),' +
               ' 0 0 0 6px rgba(148,163,184,0.07), 0 10px 26px rgba(0,0,0,0.4)',
           }}
         >
           {/* the sheen on the glass */}
           <div
-            className="absolute inset-0 rounded-full pointer-events-none"
+            className="absolute inset-0 rounded-2xl pointer-events-none"
             style={{
               background:
-                'radial-gradient(circle at 30% 16%, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.02) 20%, rgba(255,255,255,0) 42%)',
+                'linear-gradient(155deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.02) 22%, rgba(255,255,255,0) 46%)',
             }}
           />
 
-          {SEATS.map((seat) => {
-            const isDrawn = drawnSet.has(seat.n);
-            const isLatest = latest === seat.n;
+          {/* 1-90 in reading order, so any number is where the eye expects it */}
+          <div className="grid grid-cols-10 gap-1 relative" style={{ direction: 'ltr' }}>
+            {Array.from({ length: 90 }, (_, i) => i + 1).map((n) => {
+              const isDrawn = drawnSet.has(n);
+              const isLatest = latest === n;
 
-            const common = {
-              ref: (el: HTMLElement | null) => {
-                ballRefs.current.set(seat.n, el);
-              },
-              style: {
-                left: `${seat.x}%`,
-                top: `${seat.y}%`,
-                width: `${BALL * 100}%`,
-                height: `${BALL * 100}%`,
-                fontSize: BALL_FONT,
-              } as React.CSSProperties,
-            };
+              if (isDrawn) {
+                // the socket the ball left behind
+                return (
+                  <div
+                    key={n}
+                    ref={(el) => {
+                      ballRefs.current.set(n, el);
+                    }}
+                    className={`aspect-square w-full rounded-full flex items-center justify-center font-black ${
+                      isLatest
+                        ? 'bg-emerald-500/10 text-emerald-500/60 ring-1 ring-emerald-500/25'
+                        : 'bg-slate-950/70 text-slate-800'
+                    }`}
+                    style={{ fontSize: BALL_FONT, boxShadow: 'inset 0 1px 4px rgba(0,0,0,0.6)' }}
+                  >
+                    {n}
+                  </div>
+                );
+              }
 
-            if (isDrawn) {
-              // the socket the ball left behind
               return (
-                <div
-                  key={seat.n}
-                  ref={common.ref as any}
-                  className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full flex items-center justify-center font-black ${
-                    isLatest
-                      ? 'bg-emerald-500/10 text-emerald-500/60 ring-1 ring-emerald-500/25'
-                      : 'bg-slate-950/70 text-slate-800'
-                  }`}
+                <button
+                  key={n}
+                  ref={(el) => {
+                    ballRefs.current.set(n, el);
+                  }}
+                  onClick={() => onPick(n)}
+                  disabled={!active}
+                  aria-label={`اسحب الرقم ${n}`}
+                  className="aspect-square w-full rounded-full flex items-center justify-center font-black text-slate-900 transition-transform active:scale-90 hover:scale-110 hover:z-10 cursor-pointer disabled:cursor-not-allowed disabled:opacity-45"
                   style={{
-                    ...common.style,
-                    boxShadow: 'inset 0 1px 4px rgba(0,0,0,0.6)',
+                    fontSize: BALL_FONT,
+                    background: BALL_SURFACE,
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.45)',
                   }}
                 >
-                  {seat.n}
-                </div>
+                  {n}
+                </button>
               );
-            }
-
-            return (
-              <button
-                key={seat.n}
-                ref={common.ref as any}
-                onClick={() => onPick(seat.n)}
-                disabled={!active}
-                aria-label={`اسحب الرقم ${seat.n}`}
-                className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full flex items-center justify-center font-black text-slate-900 transition-transform active:scale-90 hover:scale-110 hover:z-10 cursor-pointer disabled:cursor-not-allowed disabled:opacity-45"
-                style={{
-                  ...common.style,
-                  background: BALL_SURFACE,
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.45)',
-                }}
-              >
-                {seat.n}
-              </button>
-            );
-          })}
+            })}
+          </div>
         </div>
-
 
         {/* ------ the ball that dropped, and beside it the ones already out ------ */}
         <div className="w-full max-w-[340px] mt-3 flex items-stretch gap-3">
