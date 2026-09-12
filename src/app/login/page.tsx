@@ -131,7 +131,7 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              className="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black py-3 px-6 rounded-xl text-sm transition-all active:scale-95 shadow-lg shadow-emerald-500/10 mt-2 cursor-pointer"
+              className="w-full bg-emerald-500 hover:bg-emerald-600 text-ink-fixed font-black py-3 px-6 rounded-xl text-sm transition-all active:scale-95 shadow-lg shadow-emerald-500/10 mt-2 cursor-pointer"
               disabled={loading}
               style={{ fontFamily: 'Cairo, sans-serif' }}
             >
