@@ -2,10 +2,23 @@
 
 import { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
-import { Play, Pause, RotateCcw, Award, Sparkles, Loader2, X, Undo2, Gift, Check, SlidersHorizontal } from 'lucide-react';
+import { Play, Pause, RotateCcw, Award, Sparkles, Loader2, X, Gift, Check, SlidersHorizontal, ScanLine, QrCode, WifiOff, CloudUpload } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DrawDrum from '@/components/DrawDrum';
+import useBallScanner from '@/components/useBallScanner';
+import useOnline, { backOnline, goneOffline } from '@/components/useOnline';
+import {
+  clearBoard,
+  dropOpsForOtherSessions,
+  flushOutbox,
+  loadBoard,
+  pendingOps,
+  queueOp,
+  queueUndo,
+  saveBoard,
+} from '@/lib/offline';
 import Drawer from '@/components/Drawer';
+import Link from 'next/link';
 import PrizeSettingsPanel, {
   DEFAULT_PRIZES,
   PRIZE_LABELS,
@@ -82,11 +95,14 @@ export default function PlayPage() {
   const [prizeNotice, setPrizeNotice] = useState('');
   /** the slide-over holding the session controls */
   const [menuOpen, setMenuOpen] = useState(false);
+  /** reading balls off their stickers instead of typing them */
+  const [scanOn, setScanOn] = useState(false);
+  /** draws that could not be sent yet, waiting for the connection */
+  const [waiting, setWaiting] = useState(0);
+  /** the board came off this device rather than the server */
+  const [fromCache, setFromCache] = useState(false);
+  const online = useOnline();
 
-  // Fetch current session on mount
-  useEffect(() => {
-    fetchCurrentSession();
-  }, []);
 
   /**
    * Read the session from the server.
@@ -99,7 +115,27 @@ export default function PlayPage() {
       const res = await fetch('/api/sessions/current');
       const data = await res.json();
       if (data.success) {
-        setSession(data.session ? { ...data.session, numbers: data.session.numbers ?? [] } : null);
+        const live = data.session ? { ...data.session, numbers: data.session.numbers ?? [] } : null;
+        setSession(live);
+        setFromCache(false);
+        backOnline();
+
+        // keep a copy on this device so a reload without a connection still
+        // shows the game exactly where it was
+        if (live) {
+          saveBoard({
+            sessionId: String(live.id),
+            name: live.name,
+            status: live.status,
+            numbers: live.numbers,
+            savedAt: Date.now(),
+          });
+          dropOpsForOtherSessions(String(live.id));
+        } else {
+          clearBoard();
+        }
+        setWaiting(pendingOps().length);
+
         // A running game keeps its own rules; with no game we open on whatever
         // this club used last time, so the start screen needs no re-typing.
         setPrizes(normalizePrizes(data.session ? data.session.prizes : data.lastPrizes));
@@ -111,11 +147,73 @@ export default function PlayPage() {
         }
       }
     } catch (err) {
+      // The server could not be reached. Rather than an empty screen, show the
+      // board as this device last knew it and carry on playing into the outbox.
+      goneOffline();
+      const saved = loadBoard();
+      if (saved) {
+        setSession((prev) =>
+          prev ?? {
+            id: saved.sessionId,
+            name: saved.name,
+            status: saved.status as DrawSession['status'],
+            numbers: saved.numbers,
+          }
+        );
+        setFromCache(true);
+      }
+      setWaiting(pendingOps().length);
       console.error('Failed to fetch current session:', err);
     } finally {
       if (!silent) setLoading(false);
     }
   };
+
+  // Fetch current session on mount. `loading` already starts true, so this asks
+  // for the silent read and drops the spinner when the answer arrives — setting
+  // loading true again here would only cost a render.
+  useEffect(() => {
+    void fetchCurrentSession(true).finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /**
+   * Drain the outbox whenever the connection comes back, then re-read the board
+   * so the screen ends up agreeing with the server rather than with itself.
+   */
+  useEffect(() => {
+    let cancelled = false;
+
+    const drain = async () => {
+      if (pendingOps().length === 0) return;
+      const { left } = await flushOutbox();
+      if (cancelled) return;
+      setWaiting(left);
+      if (left === 0) {
+        backOnline();
+        await fetchCurrentSession(true);
+      }
+    };
+
+    const onBack = () => {
+      void drain();
+    };
+
+    window.addEventListener('online', onBack);
+    if (online) void drain();
+
+    // a connection can return without the browser firing 'online'
+    const poll = setInterval(() => {
+      if (pendingOps().length > 0) void drain();
+    }, 15000);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('online', onBack);
+      clearInterval(poll);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [online]);
 
   /**
    * Pressing "ابدأ" opens the prize rules first — the caller either changes a
@@ -190,6 +288,15 @@ export default function PlayPage() {
     setPrizeModal('edit');
   };
 
+  /**
+   * A scanned ball goes through exactly the same path as a tapped one, so it
+   * inherits the optimistic update, the prize check and the undo.
+   */
+  const scan = useBallScanner({
+    enabled: scanOn && session?.status === 'active',
+    onScan: (ball) => submitNumber(ball),
+  });
+
   const processDrawResult = (data: any) => {
     setSession(prev => {
       if (!prev) return prev;
@@ -220,9 +327,18 @@ export default function PlayPage() {
     }
 
     setError('');
-    setSession(prev =>
-      prev ? { ...prev, numbers: [...(prev.numbers ?? []), { number: num, drawOrder: (prev.numbers ?? []).length + 1 }] } : prev
-    );
+    setSession(prev => {
+      if (!prev) return prev;
+      const numbers = [...(prev.numbers ?? []), { number: num, drawOrder: (prev.numbers ?? []).length + 1 }];
+      saveBoard({
+        sessionId: String(prev.id),
+        name: prev.name,
+        status: prev.status,
+        numbers,
+        savedAt: Date.now(),
+      });
+      return { ...prev, numbers };
+    });
     setPendingCount(c => c + 1);
 
     fetch('/api/sessions/current/draw', {
@@ -244,8 +360,12 @@ export default function PlayPage() {
         }
       })
       .catch(() => {
-        setSession(prev => (prev ? { ...prev, numbers: (prev.numbers ?? []).filter(n => n.number !== num) } : prev));
-        setError('تعذر الاتصال بالسيرفر لإضافة الرقم');
+        // The number stays on the board. It is this device's record of a ball
+        // that really came out of the drum, and it goes out as soon as there is
+        // a connection again — losing it would be the worst possible outcome.
+        goneOffline();
+        if (session) queueOp('draw', num, String(session.id));
+        setWaiting(pendingOps().length);
       })
       .finally(() => setPendingCount(c => c - 1));
   };
@@ -277,10 +397,27 @@ export default function PlayPage() {
       } else {
         setError(data.message || 'تعذر إلغاء الرقم');
       }
+      await fetchCurrentSession(true); // the database has the last word
     } catch {
-      setError('تعذر الاتصال بالسيرفر لإلغاء الرقم');
+      // No connection: take it off this device's board and queue the removal.
+      goneOffline();
+      setSession(prev => {
+        if (!prev) return prev;
+        const numbers = (prev.numbers ?? []).filter(n => n.number !== target);
+        saveBoard({
+          sessionId: String(prev.id),
+          name: prev.name,
+          status: prev.status,
+          numbers,
+          savedAt: Date.now(),
+        });
+        return { ...prev, numbers };
+      });
+      if (session) queueUndo(target, String(session.id));
+      setWaiting(pendingOps().length);
+      setActiveNewWinners([]);
+      setAllWinners(null);
     } finally {
-      await fetchCurrentSession(true); // resync either way
       setUndoing(false);
     }
   };
@@ -519,8 +656,22 @@ export default function PlayPage() {
               </button>
 
               <div className="flex items-center gap-2 min-w-0">
+                <button
+                  onClick={() => setScanOn((v) => !v)}
+                  aria-pressed={scanOn}
+                  title="قراءة الطوبة بالماسح"
+                  className={`flex items-center gap-1 py-1.5 px-2 rounded-lg text-[10px] font-bold border transition-colors cursor-pointer flex-shrink-0 ${
+                    scanOn
+                      ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
+                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                  }`}
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
+                >
+                  <ScanLine size={12} />
+                  <span>الماسح</span>
+                </button>
                 <h2
-                  className="text-[11px] font-bold text-slate-300 truncate"
+                  className="text-[11px] font-bold text-slate-300 truncate hidden sm:block"
                   style={{ fontFamily: 'Cairo, sans-serif' }}
                 >
                   {session.name}
@@ -547,6 +698,61 @@ export default function PlayPage() {
             {prizeNotice && (
               <div className="bg-amber-500/10 border border-amber-500/25 text-amber-400 p-3 rounded-xl text-[11px] font-bold text-center leading-relaxed" style={{ fontFamily: 'Cairo, sans-serif' }}>
                 {prizeNotice}
+              </div>
+            )}
+
+            {(!online || waiting > 0 || fromCache) && (
+              <div
+                className={`rounded-xl border p-3 flex items-start gap-2.5 text-[11px] font-bold leading-relaxed ${
+                  online
+                    ? 'bg-sky-500/10 border-sky-500/25 text-sky-400'
+                    : 'bg-amber-500/10 border-amber-500/25 text-amber-400'
+                }`}
+                style={{ fontFamily: 'Cairo, sans-serif' }}
+              >
+                {online ? (
+                  <CloudUpload size={15} className="flex-shrink-0 mt-0.5" />
+                ) : (
+                  <WifiOff size={15} className="flex-shrink-0 mt-0.5" />
+                )}
+                <span className="flex-1">
+                  {online
+                    ? `رجع النت — جاري إرسال ${waiting} ${waiting === 1 ? 'رقم' : 'أرقام'}.`
+                    : 'ماكو نت — الأرقام تنحفظ بالجهاز وتنرسل لحالها أول ما يرجع الاتصال.'}
+                  {!online && waiting > 0 && (
+                    <strong className="mx-1">({waiting} بالانتظار)</strong>
+                  )}
+                  {!online && (
+                    <span className="block text-[10px] opacity-80 mt-0.5">
+                      تنبيه الفائزين يتوقف بدون نت ويرجع يشتغل أول ما يرجع الاتصال.
+                    </span>
+                  )}
+                </span>
+              </div>
+            )}
+
+            {scanOn && (
+              <div
+                className={`rounded-xl border p-3 flex items-center gap-2.5 text-xs font-bold ${
+                  scan.rejected
+                    ? 'bg-red-500/10 border-red-500/25 text-red-400'
+                    : scan.ball
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                    : 'bg-slate-950 border-slate-800 text-slate-400'
+                }`}
+                style={{ fontFamily: 'Cairo, sans-serif' }}
+              >
+                <ScanLine size={16} className="flex-shrink-0" />
+                <span className="flex-1">
+                  {scan.rejected
+                    ? `ما عرفت هذا الباركود: ${scan.rejected}`
+                    : scan.ball
+                    ? `انقرأت الطوبة ${scan.ball}`
+                    : 'الماسح جاهز — دك الطوبة وهي تنزل لحالها.'}
+                </span>
+                {session.status !== 'active' && (
+                  <span className="text-amber-400 text-[10px] flex-shrink-0">الجلسة متوقفة</span>
+                )}
               </div>
             )}
 
@@ -637,6 +843,15 @@ export default function PlayPage() {
           )}
 
               <div className="grid grid-cols-2 gap-2">
+            <Link
+              href="/labels"
+              onClick={() => setMenuOpen(false)}
+              className="col-span-2 flex items-center justify-center gap-1.5 py-2 px-3 text-[11px] font-extrabold border border-slate-700 hover:bg-slate-800 text-slate-300 rounded-xl transition-all cursor-pointer"
+              style={{ fontFamily: 'Cairo, sans-serif' }}
+            >
+              <QrCode size={13} /> طبع باركود الطوبات
+            </Link>
+
             <button
               onClick={() => {
                 setMenuOpen(false);
