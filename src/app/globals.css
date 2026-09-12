@@ -12,17 +12,177 @@
   --danger-hover: #dc2626; /* red-600 */
   --danger-light: rgba(239, 68, 68, 0.1);
   --success: #10b981;
-  --bg: #090d16; /* very dark slate */
-  --card-bg: #111827; /* dark grey slate */
-  --text: #f9fafb;
-  --text-muted: #9ca3af;
-  --border: #1f2937;
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 20px;
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.5);
   --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.5), 0 2px 4px -1px rgba(0,0,0,0.5);
   --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.5), 0 4px 6px -2px rgba(0,0,0,0.5);
+}
+
+/* ===========================================================================
+   Themes
+   ---------------------------------------------------------------------------
+   Tailwind v4 compiles every colour utility to a variable — `bg-slate-900`
+   becomes `background-color: var(--color-slate-900)`. So redefining the slate
+   ramp under a `data-theme` re-skins all ~840 colour classes in the app at
+   once, with no change to a single component.
+
+   The ramp is therefore read as a scale, not as literal colours: 950 is the
+   page, 900 the card, 800/700 the borders, 400/500 the quiet text, 100 the
+   loud text. A light theme is that same scale turned around.
+
+   Two things must NOT follow the ramp:
+     --ink-fixed  text sitting on an accent fill or on a white ball; it stays
+                  dark in every theme or it disappears.
+     the balls    they are physical bingo balls, white in every theme.
+   =========================================================================== */
+
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #7c8a9e;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1e293b;
+  --color-slate-850: #172033;
+  --color-slate-900: #0f172a;
+  --color-slate-950: #020617;
+
+  --ink-fixed: #0f172a;
+
+  /* the drum's glass body */
+  --drum-1: #1c2740;
+  --drum-2: #111b2c;
+  --drum-3: #0a1120;
+  --drum-rim: rgba(148, 163, 184, 0.16);
+  --drum-rim-outer: rgba(148, 163, 184, 0.07);
+  --drum-socket: rgba(2, 6, 23, 0.7);
+  --drum-socket-ink: rgba(148, 163, 184, 0.45);
+  --drum-sheen: rgba(255, 255, 255, 0.09);
+  --drum-inset: rgba(0, 0, 0, 0.45);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+
+  --color-slate-50: #020617;
+  --color-slate-100: #0f172a;
+  --color-slate-200: #1e293b;
+  --color-slate-300: #334155;
+  --color-slate-400: #475569;
+  --color-slate-500: #5a6878;
+  --color-slate-600: #94a3b8;
+  --color-slate-700: #cbd5e1;
+  --color-slate-800: #e2e8f0;
+  --color-slate-850: #eef2f7;
+  --color-slate-900: #ffffff;
+  --color-slate-950: #eef2f7;
+
+  --ink-fixed: #0f172a;
+
+  /* accents used as text have to come down the ramp on a light surface */
+  --color-emerald-400: #047857;
+  --color-emerald-500: #059669;
+  --color-amber-400: #b45309;
+  --color-red-400: #b91c1c;
+  --color-cyan-400: #0e7490;
+  --color-sky-400: #0369a1;
+
+  --drum-1: #d7dfea;
+  --drum-2: #c3cedd;
+  --drum-3: #aebbcd;
+  --drum-rim: rgba(51, 65, 85, 0.28);
+  --drum-rim-outer: rgba(51, 65, 85, 0.10);
+  --drum-socket: rgba(51, 65, 85, 0.30);
+  --drum-socket-ink: rgba(15, 23, 42, 0.55);
+  --drum-sheen: rgba(255, 255, 255, 0.55);
+  --drum-inset: rgba(15, 23, 42, 0.20);
+}
+
+[data-theme='midnight'] {
+  color-scheme: dark;
+
+  --color-slate-50: #fafafa;
+  --color-slate-100: #f4f4f5;
+  --color-slate-200: #e4e4e7;
+  --color-slate-300: #d4d4d8;
+  --color-slate-400: #a1a1aa;
+  --color-slate-500: #8b8b95;
+  --color-slate-600: #52525b;
+  --color-slate-700: #3f3f46;
+  --color-slate-800: #26262a;
+  --color-slate-850: #1a1a1d;
+  --color-slate-900: #0d0d0f;
+  --color-slate-950: #000000;
+
+  --ink-fixed: #0d0d0f;
+
+  --drum-1: #1a1a1d;
+  --drum-2: #0d0d0f;
+  --drum-3: #000000;
+  --drum-rim: rgba(161, 161, 170, 0.18);
+  --drum-rim-outer: rgba(161, 161, 170, 0.07);
+  --drum-socket: rgba(0, 0, 0, 0.85);
+  --drum-socket-ink: rgba(161, 161, 170, 0.42);
+  --drum-sheen: rgba(255, 255, 255, 0.07);
+  --drum-inset: rgba(0, 0, 0, 0.6);
+}
+
+[data-theme='warm'] {
+  color-scheme: dark;
+
+  --color-slate-50: #fafaf9;
+  --color-slate-100: #f5f5f4;
+  --color-slate-200: #e7e5e4;
+  --color-slate-300: #d6d3d1;
+  --color-slate-400: #b0a08c;
+  --color-slate-500: #9c8b76;
+  --color-slate-600: #6b5c4a;
+  --color-slate-700: #52453a;
+  --color-slate-800: #342b24;
+  --color-slate-850: #29211c;
+  --color-slate-900: #221b16;
+  --color-slate-950: #14100d;
+
+  --ink-fixed: #221b16;
+
+  --drum-1: #3a322c;
+  --drum-2: #241f1c;
+  --drum-3: #140f0d;
+  --drum-rim: rgba(214, 211, 209, 0.16);
+  --drum-rim-outer: rgba(214, 211, 209, 0.07);
+  --drum-socket: rgba(12, 10, 9, 0.7);
+  --drum-socket-ink: rgba(176, 160, 140, 0.5);
+  --drum-sheen: rgba(255, 240, 220, 0.08);
+  --drum-inset: rgba(0, 0, 0, 0.45);
+}
+
+/* The page chrome follows the same ramp. */
+:root {
+  --bg: var(--color-slate-950);
+  --card-bg: var(--color-slate-900);
+  --text: var(--color-slate-100);
+  --text-muted: var(--color-slate-400);
+  --border: var(--color-slate-800);
+}
+
+@layer utilities {
+  /* Dark ink for anything sitting on an accent fill or on a ball. */
+  .text-ink-fixed {
+    color: var(--ink-fixed);
+  }
+}
+
+/* Repainting mid-game should not flash. */
+html {
+  transition: background-color 180ms ease;
 }
 
 /*

@@ -73,7 +73,7 @@ export default async function Home() {
             </div>
             <Link 
               href="/login" 
-              className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 text-center font-extrabold text-xs py-2 rounded-xl transition-all"
+              className="w-full bg-amber-500 hover:bg-amber-600 text-ink-fixed text-center font-extrabold text-xs py-2 rounded-xl transition-all"
               style={{ fontFamily: 'Cairo, sans-serif' }}
             >
               تسجيل الدخول للنظام
