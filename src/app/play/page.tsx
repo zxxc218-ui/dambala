@@ -7,6 +7,9 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import DrawDrum from '@/components/DrawDrum';
 import useBallScanner from '@/components/useBallScanner';
 import useOnline, { backOnline, goneOffline } from '@/components/useOnline';
+import { computeStandings, orderMap, toStatus } from '@/lib/prizes';
+import { WIN_LABELS, winsCompletedBy } from '@/lib/cardShape';
+import { ensureLocalCards, localCardIndex } from '@/lib/localCards';
 import {
   clearBoard,
   dropOpsForOtherSessions,
@@ -101,6 +104,8 @@ export default function PlayPage() {
   const [waiting, setWaiting] = useState(0);
   /** the board came off this device rather than the server */
   const [fromCache, setFromCache] = useState(false);
+  /** the cards are on this device, so winners can be named without a connection */
+  const [cardsReady, setCardsReady] = useState(false);
   const online = useOnline();
 
 
@@ -176,6 +181,15 @@ export default function PlayPage() {
     void fetchCurrentSession(true).finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /**
+   * Quietly keep a copy of the cards on this device. It is what lets the game
+   * still name winners once the connection is gone, and it costs one small
+   * download while everything is working.
+   */
+  useEffect(() => {
+    void ensureLocalCards().then((idx) => setCardsReady(Boolean(idx)));
+  }, [online]);
 
   /**
    * Drain the outbox whenever the connection comes back, then re-read the board
@@ -289,6 +303,45 @@ export default function PlayPage() {
   };
 
   /**
+   * Work out the winners on this device, using the identical rules the server
+   * runs (src/lib/cardShape + src/lib/prizes) against the cards cached here.
+   * Returns null when this device has never managed to download the cards.
+   */
+  const winnersLocally = (numbers: { number: number; drawOrder: number }[], justDrawn?: number) => {
+    const index = localCardIndex();
+    if (!index) return null;
+
+    const orders = orderMap(numbers.map((n) => ({ number: n.number, draw_order: n.drawOrder })));
+    const standings = computeStandings(index, orders, prizes);
+
+    const fresh: Winner[] = [];
+    if (justDrawn !== undefined) {
+      const before = new Set(numbers.filter((n) => n.number !== justDrawn).map((n) => n.number));
+      for (const cardIdx of index.byNumber.get(justDrawn) || []) {
+        const card = index.cards[cardIdx];
+        for (const key of winsCompletedBy(card, justDrawn, before)) {
+          if (!prizes[key].enabled) continue;
+          const standing = standings[key];
+          const place = standing.winners.findIndex(
+            (w) => w.setNo === card.setNo && w.cardNo === card.cardNo
+          );
+          if (place === -1) continue; // the prize was already full
+          fresh.push({
+            setNo: card.setNo,
+            cardNo: card.cardNo,
+            winType: WIN_LABELS[key],
+            key,
+            place: place + 1,
+            count: standing.count,
+          });
+        }
+      }
+    }
+
+    return { standings, fresh, status: toStatus(standings) };
+  };
+
+  /**
    * A scanned ball goes through exactly the same path as a tapped one, so it
    * inherits the optimistic update, the prize check and the undo.
    */
@@ -366,6 +419,18 @@ export default function PlayPage() {
         goneOffline();
         if (session) queueOp('draw', num, String(session.id));
         setWaiting(pendingOps().length);
+
+        // The server cannot say who won, so this device says it instead.
+        setSession((prev) => {
+          if (prev) {
+            const local = winnersLocally(prev.numbers ?? [], num);
+            if (local) {
+              setPrizeStatus(local.status);
+              if (local.fresh.length > 0) setActiveNewWinners(local.fresh);
+            }
+          }
+          return prev;
+        });
       })
       .finally(() => setPendingCount(c => c - 1));
   };
@@ -551,8 +616,42 @@ export default function PlayPage() {
       } else {
         alert(data.message || 'فشل فحص الفائزين');
       }
-    } catch (err) {
-      alert('تعذر الاتصال بالسيرفر لفحص البطاقات');
+    } catch {
+      // No server. Run the same check here, off the cards on this device.
+      goneOffline();
+      const local = winnersLocally(session.numbers ?? []);
+      if (!local) {
+        alert('ماكو نت، وما عندي نسخة السيتات بهذا الجهاز. افتح البرنامج مرة وهو متصل.');
+        return;
+      }
+
+      const paidBy = new Map<string, Record<string, boolean>>();
+      for (const key of PRIZE_ORDER) {
+        for (const w of local.standings[key].winners) {
+          const id = `${w.setNo}:${w.cardNo}`;
+          const row = paidBy.get(id) ?? {};
+          row[key] = true;
+          paidBy.set(id, row);
+        }
+      }
+
+      const rows: Winner[] = [...paidBy.entries()].map(([id, awarded]) => {
+        const [setNo, cardNo] = id.split(':').map(Number);
+        return {
+          setNo,
+          cardNo,
+          awarded,
+          paid: true,
+          row1: Boolean(awarded.row1),
+          row2: Boolean(awarded.row2),
+          row3: Boolean(awarded.row3),
+          corners: Boolean(awarded.corners),
+          fullCard: Boolean(awarded.fullCard),
+        };
+      });
+
+      setAllWinners(rows);
+      setPrizeStatus(local.status);
     } finally {
       setLoadingAllWinners(false);
     }
@@ -724,7 +823,9 @@ export default function PlayPage() {
                   )}
                   {!online && (
                     <span className="block text-[10px] opacity-80 mt-0.5">
-                      تنبيه الفائزين يتوقف بدون نت ويرجع يشتغل أول ما يرجع الاتصال.
+                      {cardsReady
+                        ? 'فحص الفائزين شغّال — السيتات محفوظة بهذا الجهاز.'
+                        : 'فحص الفائزين مو شغّال: ما وصلت نسخة السيتات لهذا الجهاز بعد.'}
                     </span>
                   )}
                 </span>
