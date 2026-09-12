@@ -103,7 +103,7 @@ export default function DisplayPage() {
                 <div className="absolute inset-0 bg-emerald-500/10 blur-[80px] rounded-full"></div>
                 {/* Number sphere - scaled to fit perfectly inside 430px */}
                 <div className="relative w-56 h-56 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-[0_0_60px_rgba(16,172,132,0.2)] border-6 border-slate-900/80 animate-[popIn_0.5s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards]">
-                  <span className="text-8xl font-black text-slate-950 font-mono tracking-tighter leading-none select-none">
+                  <span className="text-8xl font-black text-ink-fixed font-mono tracking-tighter leading-none select-none">
                     {lastDrawn}
                   </span>
                 </div>
