@@ -176,11 +176,11 @@ export default function DrawDrum({
           className="relative w-full max-w-[340px] rounded-2xl p-3"
           style={{
             background:
-              'radial-gradient(120% 90% at 34% 12%, #1c2740 0%, #111b2c 55%, #0a1120 100%)',
+              'radial-gradient(120% 90% at 34% 12%, var(--drum-1) 0%, var(--drum-2) 55%, var(--drum-3) 100%)',
             boxShadow:
-              'inset 0 1px 0 rgba(255,255,255,0.07), inset 0 10px 24px rgba(0,0,0,0.45),' +
-              ' 0 0 0 1px rgba(148,163,184,0.16), 0 0 0 5px rgba(15,23,42,0.9),' +
-              ' 0 0 0 6px rgba(148,163,184,0.07), 0 10px 26px rgba(0,0,0,0.4)',
+              'inset 0 1px 0 var(--drum-sheen), inset 0 10px 24px var(--drum-inset),' +
+              ' 0 0 0 1px var(--drum-rim), 0 0 0 5px var(--color-slate-900),' +
+              ' 0 0 0 6px var(--drum-rim-outer), 0 10px 26px var(--drum-inset)',
           }}
         >
           {/* the sheen on the glass */}
@@ -188,7 +188,7 @@ export default function DrawDrum({
             className="absolute inset-0 rounded-2xl pointer-events-none"
             style={{
               background:
-                'linear-gradient(155deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.02) 22%, rgba(255,255,255,0) 46%)',
+                'linear-gradient(155deg, var(--drum-sheen) 0%, transparent 46%)',
             }}
           />
 
@@ -209,9 +209,14 @@ export default function DrawDrum({
                     className={`aspect-square w-full rounded-full flex items-center justify-center font-black ${
                       isLatest
                         ? 'bg-emerald-500/10 text-emerald-500/60 ring-1 ring-emerald-500/25'
-                        : 'bg-slate-950/70 text-slate-800'
+                        : ''
                     }`}
-                    style={{ fontSize: BALL_FONT, boxShadow: 'inset 0 1px 4px rgba(0,0,0,0.6)' }}
+                    style={{
+                      fontSize: BALL_FONT,
+                      background: isLatest ? undefined : 'var(--drum-socket)',
+                      color: isLatest ? undefined : 'var(--drum-socket-ink)',
+                      boxShadow: 'inset 0 1px 4px var(--drum-inset)',
+                    }}
                   >
                     {n}
                   </div>
@@ -227,7 +232,7 @@ export default function DrawDrum({
                   onClick={() => onPick(n)}
                   disabled={!active}
                   aria-label={`اسحب الرقم ${n}`}
-                  className="aspect-square w-full rounded-full flex items-center justify-center font-black text-slate-900 transition-transform active:scale-90 hover:scale-110 hover:z-10 cursor-pointer disabled:cursor-not-allowed disabled:opacity-45"
+                  className="aspect-square w-full rounded-full flex items-center justify-center font-black text-ink-fixed transition-transform active:scale-90 hover:scale-110 hover:z-10 cursor-pointer disabled:cursor-not-allowed disabled:opacity-45"
                   style={{
                     fontSize: BALL_FONT,
                     background: BALL_SURFACE,
@@ -251,14 +256,14 @@ export default function DrawDrum({
               height: SPHERE,
               background: latest
                 ? BALL_SURFACE
-                : 'radial-gradient(circle at 32% 28%, #1e293b 0%, #0f172a 60%, #020617 100%)',
+                : 'radial-gradient(circle at 32% 28%, var(--drum-1) 0%, var(--drum-2) 60%, var(--drum-3) 100%)',
               boxShadow: latest
                 ? '0 6px 18px rgba(0,0,0,0.45), 0 0 0 3px rgba(16,185,129,0.16)'
-                : 'inset 0 3px 10px rgba(0,0,0,0.6), 0 0 0 3px rgba(30,41,59,0.5)',
+                : 'inset 0 3px 10px var(--drum-inset), 0 0 0 3px var(--color-slate-800)',
             }}
           >
             {latest && !inFlight ? (
-              <span className="text-slate-900 font-mono font-black text-4xl tracking-tighter animate-[popIn_0.25s_cubic-bezier(0.175,0.885,0.32,1.275)]">
+              <span className="text-ink-fixed font-mono font-black text-4xl tracking-tighter animate-[popIn_0.25s_cubic-bezier(0.175,0.885,0.32,1.275)]">
                 {latest}
               </span>
             ) : latest ? (
@@ -284,8 +289,12 @@ export default function DrawDrum({
             </div>
 
             <div
-              className="flex-1 flex flex-wrap gap-1 content-start rounded-xl bg-slate-950/50 p-1.5 overflow-y-auto"
-              style={{ direction: 'ltr', boxShadow: 'inset 0 2px 7px rgba(0,0,0,0.4)' }}
+              className="flex-1 flex flex-wrap gap-1 content-start rounded-xl p-1.5 overflow-y-auto"
+              style={{
+                direction: 'ltr',
+                background: 'var(--drum-socket)',
+                boxShadow: 'inset 0 2px 7px var(--drum-inset)',
+              }}
             >
               {recent.length === 0 ? (
                 <span
@@ -301,7 +310,7 @@ export default function DrawDrum({
                     <div
                       key={n.drawOrder}
                       title={`الكرة رقم ${n.drawOrder} بالترتيب`}
-                      className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black text-slate-900 ${
+                      className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black text-ink-fixed ${
                         isLatest ? 'ring-2 ring-amber-400 animate-[popIn_0.25s_ease-out]' : ''
                       }`}
                       style={{
@@ -325,7 +334,7 @@ export default function DrawDrum({
           <button
             onClick={onRandom}
             disabled={drawing || !active || remaining === 0}
-            className="flex-1 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-600 text-slate-950 font-black py-3 px-4 rounded-xl text-sm transition-all active:scale-[0.98] cursor-pointer"
+            className="flex-1 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-600 text-ink-fixed font-black py-3 px-4 rounded-xl text-sm transition-all active:scale-[0.98] cursor-pointer"
             style={{ fontFamily: 'Cairo, sans-serif' }}
           >
             {drawing ? 'جاري السحب...' : 'اسحب كرة'}
@@ -357,7 +366,7 @@ export default function DrawDrum({
         <div
           key={f.id}
           aria-hidden
-          className="absolute top-0 left-0 rounded-full flex items-center justify-center font-mono font-black text-slate-900 pointer-events-none z-30"
+          className="absolute top-0 left-0 rounded-full flex items-center justify-center font-mono font-black text-ink-fixed pointer-events-none z-30"
           style={{
             width: SPHERE,
             height: SPHERE,

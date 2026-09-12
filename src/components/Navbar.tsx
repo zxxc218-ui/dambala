@@ -3,7 +3,9 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { LogOut, Award, Play, LayoutGrid, Tv, User, Home, ScrollText, Users, BarChart3 } from 'lucide-react';
+import Drawer from '@/components/Drawer';
+import ThemeSwitcher from '@/components/ThemeSwitcher';
+import { LogOut, Award, Play, LayoutGrid, Tv, Home, ScrollText, Users, BarChart3, Palette } from 'lucide-react';
 
 interface UserSession {
   username: string;
@@ -15,6 +17,8 @@ export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const [session, setSession] = useState<UserSession | null>(null);
+  /** the appearance panel, reachable from every page */
+  const [themeOpen, setThemeOpen] = useState(false);
 
   useEffect(() => {
     // Read from localStorage first for immediate UI render
@@ -139,23 +143,41 @@ export default function Navbar() {
       <header className="w-full h-14 md:h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-4 px-4 md:px-6 sticky top-0 z-40 select-none">
         <Link
           href="/"
-          className="flex items-center gap-2 text-emerald-500 font-extrabold text-lg transition-transform active:scale-95 shrink-0"
+          className="flex items-center gap-2 text-emerald-400 font-extrabold text-lg transition-transform active:scale-95 shrink-0"
         >
           <span>🎯</span>
           <span className="truncate">الدمبلة العراقية</span>
         </Link>
 
-        {session && (
+        <div className="md:hidden flex items-center gap-0.5">
           <button
-            onClick={handleLogout}
-            title="تسجيل الخروج"
-            className="md:hidden p-2 rounded-lg text-slate-400 hover:text-red-400 transition-all cursor-pointer"
+            onClick={() => setThemeOpen(true)}
+            title="المظهر"
+            aria-label="المظهر"
+            className="p-2 rounded-lg text-slate-400 hover:text-emerald-400 transition-all cursor-pointer"
           >
-            <LogOut size={16} />
+            <Palette size={16} />
           </button>
-        )}
+          {session && (
+            <button
+              onClick={handleLogout}
+              title="تسجيل الخروج"
+              className="p-2 rounded-lg text-slate-400 hover:text-red-400 transition-all cursor-pointer"
+            >
+              <LogOut size={16} />
+            </button>
+          )}
+        </div>
 
         <div className="hidden md:flex items-center gap-3">
+          <button
+            onClick={() => setThemeOpen(true)}
+            title="المظهر"
+            aria-label="المظهر"
+            className="p-2 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-slate-800 transition-all cursor-pointer"
+          >
+            <Palette size={15} />
+          </button>
           {session && (
             <div className="flex items-center gap-2">
               <span className="text-[11px] text-slate-400 font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>
@@ -215,6 +237,15 @@ export default function Navbar() {
           );
         })}
       </nav>
+
+      <Drawer
+        open={themeOpen}
+        onClose={() => setThemeOpen(false)}
+        title="المظهر"
+        subtitle="الاختيار ينحفظ بهذا الجهاز"
+      >
+        <ThemeSwitcher />
+      </Drawer>
     </>
   );
 }

@@ -69,7 +69,7 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
         </h2>
         <a
           href="/"
-          className="mt-1 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black py-2 px-5 rounded-xl text-xs transition-all"
+          className="mt-1 bg-emerald-500 hover:bg-emerald-600 text-ink-fixed font-black py-2 px-5 rounded-xl text-xs transition-all"
           style={{ fontFamily: 'Cairo, sans-serif' }}
         >
           الرجوع للرئيسية
