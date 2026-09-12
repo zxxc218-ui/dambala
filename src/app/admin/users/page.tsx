@@ -226,7 +226,7 @@ export default function UsersAdminPage() {
           <button
             type="submit"
             disabled={creating}
-            className="bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-600 text-slate-950 font-black py-2.5 rounded-xl text-xs transition-all active:scale-[0.98] cursor-pointer"
+            className="bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-600 text-ink-fixed font-black py-2.5 rounded-xl text-xs transition-all active:scale-[0.98] cursor-pointer"
             style={{ fontFamily: 'Cairo, sans-serif' }}
           >
             {creating ? 'جاري الإنشاء...' : 'إنشاء الحساب'}
@@ -290,7 +290,7 @@ export default function UsersAdminPage() {
                         }
                       }}
                       disabled={busyId === user.id}
-                      className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-xl text-[11px] font-black cursor-pointer"
+                      className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-ink-fixed rounded-xl text-[11px] font-black cursor-pointer"
                       style={{ fontFamily: 'Cairo, sans-serif' }}
                     >
                       حفظ
