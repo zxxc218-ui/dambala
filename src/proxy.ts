@@ -33,5 +33,12 @@ export function proxy(request: NextRequest) {
 export const config = {
   // Everything except API routes (they answer 401 themselves), Next internals,
   // and static files.
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)'],
+  //
+  // sw.js and manifest.webmanifest must be excluded explicitly: the browser
+  // fetches them without the page's session in some cases, and a redirect to
+  // the login page makes the service worker fail to register — which silently
+  // costs the whole offline mode.
+  matcher: [
+    '/((?!api|_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+  ],
 };
