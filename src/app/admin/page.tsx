@@ -433,7 +433,7 @@ export default function SetsAdminPage() {
                   }}
                   className={`flex-1 text-center py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
                     activeCardNo === num
-                      ? 'bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/10'
+                      ? 'bg-emerald-500 text-ink-fixed font-bold shadow-md shadow-emerald-500/10'
                       : 'text-slate-400 bg-slate-950/40 border border-slate-950/20 hover:text-slate-200'
                   }`}
                   style={{ fontFamily: 'Cairo, sans-serif' }}
@@ -476,7 +476,7 @@ export default function SetsAdminPage() {
                   
                   <button
                     onClick={() => handleSaveCard(activeCardNo)}
-                    className="flex items-center gap-1 py-1.5 px-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-xl text-[10px] font-black cursor-pointer transition-all active:scale-95"
+                    className="flex items-center gap-1 py-1.5 px-3 bg-emerald-500 hover:bg-emerald-600 text-ink-fixed rounded-xl text-[10px] font-black cursor-pointer transition-all active:scale-95"
                     style={{ fontFamily: 'Cairo, sans-serif' }}
                   >
                     <Save size={12} />
@@ -543,7 +543,7 @@ export default function SetsAdminPage() {
               <button
                 onClick={handleSaveFullSet}
                 disabled={savingSet}
-                className="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black py-3.5 px-6 rounded-2xl text-sm transition-all active:scale-[0.98] flex justify-center items-center gap-2 shadow-lg shadow-emerald-500/10 cursor-pointer"
+                className="w-full bg-emerald-500 hover:bg-emerald-600 text-ink-fixed font-black py-3.5 px-6 rounded-2xl text-sm transition-all active:scale-[0.98] flex justify-center items-center gap-2 shadow-lg shadow-emerald-500/10 cursor-pointer"
                 style={{ fontFamily: 'Cairo, sans-serif' }}
               >
                 {savingSet ? (
