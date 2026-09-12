@@ -1,4 +1,4 @@
-import { CardIndex, IndexedCard, WinType, WIN_LABELS } from '@/lib/cards';
+import { CardIndex, IndexedCard, WinType, WIN_LABELS } from '@/lib/cardShape';
 
 /**
  * Prize rules for one game.
