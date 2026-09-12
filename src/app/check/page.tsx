@@ -265,7 +265,7 @@ export default function CheckWinnerPage() {
 
             <button
               type="submit"
-              className="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black py-3 rounded-xl text-xs transition-all active:scale-[0.98] flex justify-center items-center gap-1.5 shadow-lg shadow-emerald-500/10 cursor-pointer"
+              className="w-full bg-emerald-500 hover:bg-emerald-600 text-ink-fixed font-black py-3 rounded-xl text-xs transition-all active:scale-[0.98] flex justify-center items-center gap-1.5 shadow-lg shadow-emerald-500/10 cursor-pointer"
               disabled={searching}
               style={{ fontFamily: 'Cairo, sans-serif' }}
             >
@@ -323,7 +323,7 @@ export default function CheckWinnerPage() {
                             val === null 
                               ? 'bg-slate-900/40 text-transparent border border-slate-900' 
                               : isDrawn 
-                              ? 'bg-emerald-500 text-slate-950 border border-emerald-600 font-extrabold shadow-sm' 
+                              ? 'bg-emerald-500 text-ink-fixed border border-emerald-600 font-extrabold shadow-sm' 
                               : 'bg-slate-800 border border-slate-700 text-slate-400'
                           }`}
                         >
