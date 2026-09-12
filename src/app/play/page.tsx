@@ -495,7 +495,7 @@ export default function PlayPage() {
 
               <button 
                 type="submit" 
-                className="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black py-3 px-6 rounded-xl text-sm transition-all active:scale-[0.98] flex justify-center items-center gap-2 shadow-lg shadow-emerald-500/10 cursor-pointer" 
+                className="w-full bg-emerald-500 hover:bg-emerald-600 text-ink-fixed font-black py-3 px-6 rounded-xl text-sm transition-all active:scale-[0.98] flex justify-center items-center gap-2 shadow-lg shadow-emerald-500/10 cursor-pointer" 
                 disabled={creating}
                 style={{ fontFamily: 'Cairo, sans-serif' }}
               >
@@ -567,7 +567,7 @@ export default function PlayPage() {
               />
               <button
                 type="submit"
-                className="px-6 py-3 text-sm font-black bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-600 text-slate-950 rounded-xl transition-all active:scale-95 cursor-pointer flex-shrink-0"
+                className="px-6 py-3 text-sm font-black bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-600 text-ink-fixed rounded-xl transition-all active:scale-95 cursor-pointer flex-shrink-0"
                 disabled={session.status !== 'active'}
                 style={{ fontFamily: 'Cairo, sans-serif' }}
               >
@@ -749,7 +749,7 @@ export default function PlayPage() {
                 <button
                   onClick={prizeModal === 'start' ? confirmStart : savePrizes}
                   disabled={creating || savingPrizes}
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-600 text-slate-950 font-black py-3 px-6 rounded-xl text-sm transition-all active:scale-[0.98] shadow-lg shadow-emerald-500/10 cursor-pointer"
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-600 text-ink-fixed font-black py-3 px-6 rounded-xl text-sm transition-all active:scale-[0.98] shadow-lg shadow-emerald-500/10 cursor-pointer"
                   style={{ fontFamily: 'Cairo, sans-serif' }}
                 >
                   <Check size={16} />
@@ -819,7 +819,7 @@ export default function PlayPage() {
 
               <button 
                 onClick={() => setActiveNewWinners([])} 
-                className="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black py-2.5 px-6 rounded-xl text-xs transition-all cursor-pointer"
+                className="w-full bg-emerald-500 hover:bg-emerald-600 text-ink-fixed font-black py-2.5 px-6 rounded-xl text-xs transition-all cursor-pointer"
                 style={{ fontFamily: 'Cairo, sans-serif' }}
               >
                 متابعة اللعب 🎲
@@ -937,7 +937,7 @@ export default function PlayPage() {
               <div className="mt-5">
                 <button 
                   onClick={() => setAllWinners(null)} 
-                  className="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black py-2 rounded-xl text-xs cursor-pointer"
+                  className="w-full bg-emerald-500 hover:bg-emerald-600 text-ink-fixed font-black py-2 rounded-xl text-xs cursor-pointer"
                   style={{ fontFamily: 'Cairo, sans-serif' }}
                 >
                   إغلاق التقرير
