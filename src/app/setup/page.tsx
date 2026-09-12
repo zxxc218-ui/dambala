@@ -105,7 +105,7 @@ export default function SetupPage() {
             </p>
             <a
               href="/login"
-              className="mt-1 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black py-2.5 rounded-xl text-xs transition-all"
+              className="mt-1 bg-emerald-500 hover:bg-emerald-600 text-ink-fixed font-black py-2.5 rounded-xl text-xs transition-all"
               style={{ fontFamily: 'Cairo, sans-serif' }}
             >
               صفحة تسجيل الدخول
@@ -182,7 +182,7 @@ export default function SetupPage() {
             <button
               type="submit"
               disabled={saving}
-              className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-600 text-slate-950 font-black py-3 rounded-2xl text-sm transition-all active:scale-[0.98] cursor-pointer"
+              className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-600 text-ink-fixed font-black py-3 rounded-2xl text-sm transition-all active:scale-[0.98] cursor-pointer"
               style={{ fontFamily: 'Cairo, sans-serif' }}
             >
               {saving ? 'جاري الإنشاء...' : 'إنشاء حساب السوبر أدمن'}
