@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Cairo } from 'next/font/google';
 import './globals.css';
 import ThemeProvider, { THEME_BOOT_SCRIPT } from '@/components/ThemeProvider';
+import OfflineReady from '@/components/OfflineReady';
 
 const cairo = Cairo({
   subsets: ['arabic'],
@@ -32,6 +33,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
       </head>
       <body className="bg-slate-950 text-slate-100 min-h-screen overflow-x-hidden selection:bg-emerald-500 selection:text-ink-fixed">
+        <OfflineReady />
         <ThemeProvider>
           <div className="app-shell w-full max-w-[430px] md:max-w-3xl lg:max-w-5xl xl:max-w-6xl mx-auto min-h-screen bg-slate-900 shadow-2xl relative flex flex-col justify-between overflow-x-hidden border-x border-slate-800 pb-20 md:pb-10">
             <main className="flex-1 w-full">{children}</main>
