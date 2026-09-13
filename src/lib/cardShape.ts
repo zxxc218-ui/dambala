@@ -36,6 +36,19 @@ export const WIN_LABELS: Record<WinType, string> = {
   fullCard: 'البطاقة كاملة (دمبلة)',
 };
 
+/**
+ * Which of the nine columns a number belongs in.
+ *
+ * Not a convention this app invented: a tambola card puts 1-9 in the first
+ * column, 10-19 in the second, and so on to 80-90 in the ninth, and the
+ * importer validates every set against exactly that. So a row's numbers alone
+ * are enough to put the blanks back where they belong when drawing a card.
+ */
+export function columnOf(value: number): number {
+  if (value <= 9) return 0;
+  return Math.min(8, Math.floor(value / 10));
+}
+
 /** Build a card from its three rows, working out the corners and the full set. */
 export function makeCard(setNo: number, cardNo: number, rows: number[][]): IndexedCard {
   const safeRows = [0, 1, 2].map((i) => rows[i] ?? []);

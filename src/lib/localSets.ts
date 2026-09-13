@@ -1,6 +1,7 @@
 'use client';
 
 import { localCardIndex } from '@/lib/localCards';
+import { columnOf } from '@/lib/cardShape';
 
 /**
  * The sets, rebuilt from the copy of the cards kept on this device.
@@ -37,17 +38,13 @@ export interface LocalCard {
   rows: LocalRow[];
 }
 
+export { columnOf };
+
 export interface LocalSet {
   id: string;
   setNo: number;
   createdAt?: string;
   cards: LocalCard[];
-}
-
-/** Which of the nine columns a number belongs in. */
-export function columnOf(value: number): number {
-  if (value <= 9) return 0;
-  return Math.min(8, Math.floor(value / 10));
 }
 
 function toRow(rowNo: number, numbers: number[]): LocalRow {
