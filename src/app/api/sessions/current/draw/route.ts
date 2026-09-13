@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { getUserSession } from '@/lib/auth';
 import { getActiveSession } from '@/lib/sessions';
-import { getCardIndex, winsCompletedBy, WIN_LABELS } from '@/lib/cards';
-import { computeStandings, orderMap, toStatus, PrizeKey } from '@/lib/prizes';
+import { getCardIndex } from '@/lib/cards';
+import { computeStandings, freshWins, orderMap, toStatus, winnerName } from '@/lib/prizes';
 
 function unauthorized() {
   return NextResponse.json(
@@ -97,58 +97,32 @@ export async function POST(req: NextRequest) {
 
     if (insertErr) throw insertErr;
 
-    // Only cards holding the new number can have just won.
+    // Who the new ball just paid.
+    //
+    // Worked out the same way every other screen works it out: rank everything
+    // against this game's rules, then take the winners whose prize completed on
+    // this ball's draw order. One rule covers a card, half a set and a whole
+    // set — which is what lets the corner prizes exist at three sizes without a
+    // second way of deciding them.
     const index = await cardIndexPromise;
-    const candidates = index.byNumber.get(drawnNumber) || [];
+    const orders = orderMap([
+      ...((drawnRows || []) as any),
+      { number: drawnNumber, draw_order: nextOrder },
+    ]);
+    const standings = computeStandings(index, orders, session.prizes);
+    const prizeStatus = toStatus(standings);
 
-    const completed: { setNo: number; cardNo: number; key: PrizeKey }[] = [];
-    for (const cardIdx of candidates) {
-      const card = index.cards[cardIdx];
-      for (const win of winsCompletedBy(card, drawnNumber, drawnBefore)) {
-        if (!session.prizes[win].enabled) continue; // prize switched off for this game
-        completed.push({ setNo: card.setNo, cardNo: card.cardNo, key: win });
-      }
-    }
-
-    // Rank every card against this game's prize rules. Only worth doing when
-    // something actually completed — a plain number costs nothing extra.
-    let prizeStatus = null;
-    const newWinners: {
-      setNo: number;
-      cardNo: number;
-      winType: string;
-      key: PrizeKey;
-      place: number;
-      count: number;
-    }[] = [];
-
-    if (completed.length > 0) {
-      const orders = orderMap([
-        ...((drawnRows || []) as any),
-        { number: drawnNumber, draw_order: nextOrder },
-      ]);
-      const standings = computeStandings(index, orders, session.prizes);
-      prizeStatus = toStatus(standings);
-
-      for (const c of completed) {
-        const standing = standings[c.key];
-        // A card that finished the line after the prize was already full does
-        // not get announced — the prize is gone.
-        const place = standing.winners.findIndex(
-          (w) => w.setNo === c.setNo && w.cardNo === c.cardNo
-        );
-        if (place === -1) continue;
-
-        newWinners.push({
-          setNo: c.setNo,
-          cardNo: c.cardNo,
-          winType: WIN_LABELS[c.key],
-          key: c.key,
-          place: place + 1,
-          count: standing.count,
-        });
-      }
-    }
+    const newWinners = freshWins(standings, nextOrder).map((w) => ({
+      setNo: w.setNo,
+      cardNo: w.cardNo,
+      half: w.half,
+      scope: w.scope,
+      winType: w.label,
+      name: winnerName(w),
+      key: w.key,
+      place: w.place,
+      count: w.count,
+    }));
 
     return NextResponse.json({
       success: true,
