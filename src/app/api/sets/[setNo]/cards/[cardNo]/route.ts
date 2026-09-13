@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { isSignedIn } from '@/lib/auth';
+import { isSignedIn, isSuperAdmin } from '@/lib/auth';
 import { validateTambolaData } from '@/lib/validation';
 import { invalidateCardIndex } from '@/lib/cards';
 
@@ -65,11 +65,17 @@ export async function PUT(
   { params }: { params: Promise<{ setNo: string; cardNo: string }> }
 ) {
   try {
-    // Sets are shared and any signed-in club may correct a card.
-    if (!isSignedIn(req)) {
+    // The sets are the game itself, and every club plays the same ones — a
+    // number changed here changes what counts as a win in every hall at once.
+    // So editing belongs to the owner alone; a club account reads them and
+    // nothing more.
+    if (!isSuperAdmin(req)) {
       return NextResponse.json(
-        { success: false, message: 'يرجى تسجيل الدخول أولاً', needsLogin: true },
-        { status: 401 }
+        {
+          success: false,
+          message: 'تعديل السيتات للسوبر أدمن فقط',
+        },
+        { status: 403 }
       );
     }
 
