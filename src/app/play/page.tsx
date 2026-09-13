@@ -28,7 +28,7 @@ import useBallScanner from '@/components/useBallScanner';
 import useOnline from '@/components/useOnline';
 import useGame from '@/components/useGame';
 import { computeStandings, orderMap, toStatus } from '@/lib/prizes';
-import { WIN_LABELS, winsCompletedBy, CardIndex } from '@/lib/cardShape';
+import { WIN_LABELS, winsCompletedBy, CardIndex, IndexedCard } from '@/lib/cardShape';
 import { ensureLocalCards, localCardIndex } from '@/lib/localCards';
 import {
   DrawnNumber,
@@ -134,6 +134,119 @@ function readBoard(
   }
 
   return { standings, fresh, status: toStatus(standings) };
+}
+
+interface WonRow {
+  key: PrizeKey;
+  place: number;
+  count: number;
+  setNo: number;
+  cardNo: number;
+  /** the draw order of the ball that completed it */
+  at: number;
+}
+
+/**
+ * The cards that have won, as they win.
+ *
+ * On a wide screen this fills the space beside the drum, which was empty, and
+ * on a phone it sits under it. Either way it is the night's record: the newest
+ * win on top, each shown as the card itself with the line that took the prize
+ * lit, so a claim can be settled by looking rather than by asking.
+ */
+function WinnersBoard({
+  rows,
+  drawn,
+  cardOf,
+  ready,
+}: {
+  rows: WonRow[];
+  drawn: Set<number>;
+  cardOf: (setNo: number, cardNo: number) => IndexedCard | null;
+  ready: boolean;
+}) {
+  return (
+    <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-3 flex flex-col gap-2.5">
+      <div className="flex items-baseline justify-between">
+        <h3
+          className="text-[11px] font-black text-slate-300 flex items-center gap-1.5"
+          style={{ fontFamily: 'Cairo, sans-serif' }}
+        >
+          <Award size={13} className="text-amber-400" /> البطايق الفايزة
+        </h3>
+        <span className="text-[10px] font-black text-slate-500 font-mono">{rows.length}</span>
+      </div>
+
+      {!ready ? (
+        <p
+          className="text-[10px] text-slate-600 leading-relaxed py-6 text-center"
+          style={{ fontFamily: 'Cairo, sans-serif' }}
+        >
+          ما وصلت نسخة السيتات لهذا الجهاز بعد.
+        </p>
+      ) : rows.length === 0 ? (
+        <p
+          className="text-[10px] text-slate-600 leading-relaxed py-8 text-center"
+          style={{ fontFamily: 'Cairo, sans-serif' }}
+        >
+          ما فازت ولا بطاقة لحد هسه.
+          <br />
+          أول ما تربح وحدة تنزل هنا.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2 max-h-[70vh] overflow-y-auto">
+          {rows.map((w, i) => {
+            const card = cardOf(w.setNo, w.cardNo);
+            return (
+              <div
+                key={`${w.key}-${w.setNo}-${w.cardNo}-${i}`}
+                className={`bg-slate-950 border rounded-xl p-2 flex items-center gap-2.5 ${
+                  i === 0 ? 'border-emerald-500/40' : 'border-slate-800'
+                }`}
+              >
+                {card && (
+                  <div className="flex-1 min-w-0 max-w-[220px]">
+                    <CardGrid card={card} drawn={drawn} won={w.key} size="sm" />
+                  </div>
+                )}
+
+                <div className="flex flex-col items-start gap-0.5 flex-shrink-0">
+                  <span
+                    className="text-[10px] font-black text-slate-200 leading-snug"
+                    style={{ fontFamily: 'Cairo, sans-serif' }}
+                  >
+                    سيت {String(w.setNo).padStart(3, '0')}
+                    <br />
+                    بطاقة {String(w.cardNo).padStart(2, '0')}
+                  </span>
+                  <span
+                    className={`px-1.5 py-0.5 rounded font-black text-[9px] ${
+                      w.key === 'fullCard'
+                        ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                        : w.key === 'corners'
+                        ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
+                        : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    }`}
+                    style={{ fontFamily: 'Cairo, sans-serif' }}
+                  >
+                    {WIN_LABELS[w.key]}
+                  </span>
+                  {w.count > 1 && (
+                    <span
+                      className="text-[9px] font-black text-slate-500"
+                      style={{ fontFamily: 'Cairo, sans-serif' }}
+                    >
+                      الفائز {w.place} من {w.count}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function PlayPage() {
@@ -282,12 +395,47 @@ export default function PlayPage() {
 
   const numbers = useMemo(() => game?.numbers ?? [], [game]);
 
-  /** The prize counters, recomputed here whenever the board moves. */
-  const prizeStatus = useMemo(() => {
+  /**
+   * The whole standing of the game, recomputed whenever the board moves.
+   *
+   * One pass feeds both the prize counters and the list of cards that have
+   * won — they are the same calculation, and doing it twice per ball would be
+   * two passes over nine hundred cards for one answer.
+   */
+  const board = useMemo(() => {
     const index = cardsReady ? localCardIndex() : null;
     if (!index || !game) return null;
-    return readBoard(index, game.numbers, game.prizes).status;
+    return readBoard(index, game.numbers, game.prizes);
   }, [game, cardsReady]);
+
+  const prizeStatus = board?.status ?? null;
+
+  /**
+   * Every card that has taken a prize so far, newest first.
+   *
+   * This is the running record of the night. The popup announces a win and is
+   * then dismissed; this stays, so at any point the caller can look across and
+   * see every card that has won and what it won — without stopping the game to
+   * go and ask for it.
+   */
+  const wonCards = useMemo(() => {
+    if (!board) return [];
+    const rows: { key: PrizeKey; place: number; count: number; setNo: number; cardNo: number; at: number }[] = [];
+    for (const key of PRIZE_ORDER) {
+      board.standings[key].winners.forEach((w, i) => {
+        rows.push({
+          key,
+          place: i + 1,
+          count: board.standings[key].count,
+          setNo: w.setNo,
+          cardNo: w.cardNo,
+          at: w.at,
+        });
+      });
+    }
+    // the ball that completed it — the most recent win sits at the top
+    return rows.sort((a, b) => b.at - a.at);
+  }, [board]);
 
   const announce = useCallback(
     (board: DrawnNumber[], justDrawn: number) => {
@@ -697,12 +845,21 @@ export default function PlayPage() {
              In focus mode the drum takes the whole screen: the overlay covers
              the navigation and the settings, and only the things a caller uses
              while balls are coming out are left. */
+          /* Two columns from md up, and the document is RTL, so the first child
+             lands on the right: the game on the right, the cards that have won
+             filling what used to be empty space on the left. Stacked on a
+             phone, where there is only one column to have. */
           <div
             className={
               focusMode
-                ? 'fixed inset-0 z-50 bg-slate-950 overflow-y-auto px-3 py-3 flex flex-col gap-3'
-                : 'flex flex-col gap-4 w-full md:max-w-[620px] md:me-auto'
+                ? 'fixed inset-0 z-50 bg-slate-950 overflow-y-auto p-3 flex flex-col md:flex-row md:items-start md:gap-4'
+                : 'flex flex-col md:flex-row md:items-start md:gap-4'
             }
+          >
+          <div
+            className={`flex flex-col gap-4 w-full md:w-[620px] md:flex-shrink-0 ${
+              focusMode ? 'gap-3' : ''
+            }`}
           >
 
             {focusMode ? (
@@ -890,6 +1047,17 @@ export default function PlayPage() {
               onUndo={handleUndoLast}
             />
 
+          </div>
+
+            {/* the night's winners, beside the drum */}
+            <div className="mt-4 md:mt-0 md:flex-1 md:min-w-0">
+              <WinnersBoard
+                rows={wonCards}
+                drawn={new Set(numbers.map((n) => n.number))}
+                cardOf={cardOf}
+                ready={cardsReady}
+              />
+            </div>
           </div>
         )}
 
