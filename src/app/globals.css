@@ -566,23 +566,40 @@ html, body {
 }
 
 .card-paper .sheet-card-nums {
-  font-size: 12px;
-  padding: 0 2px 2px;
+  font-size: 13px;
+  padding: 0 2px 3px;
 }
 
 .card-paper .sheet-grid td {
-  height: 24px;
-  font-size: 13px;
+  height: 30px;
+  font-size: 15px;
 }
 
 /* smaller again, for the running list beside the drum */
 .card-paper.is-small .sheet-card-nums {
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .card-paper.is-small .sheet-grid td {
-  height: 19px;
-  font-size: 11px;
+  height: 24px;
+  font-size: 13px;
+}
+
+/* the winners panel gets the room, so the paper grows with it */
+@media (min-width: 1280px) {
+  .card-paper .sheet-grid td {
+    height: 34px;
+    font-size: 17px;
+  }
+
+  .card-paper.is-small .sheet-grid td {
+    height: 28px;
+    font-size: 15px;
+  }
+
+  .card-paper.is-small .sheet-card-nums {
+    font-size: 12px;
+  }
 }
 
 /* a number that has come out of the drum */

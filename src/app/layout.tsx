@@ -54,7 +54,7 @@ export default function RootLayout({
       <body className="bg-slate-950 text-slate-100 min-h-screen overflow-x-hidden selection:bg-emerald-500 selection:text-ink-fixed">
         <OfflineReady />
         <ThemeProvider>
-          <div className="app-shell w-full max-w-[430px] md:max-w-3xl lg:max-w-5xl xl:max-w-6xl mx-auto min-h-screen bg-slate-900 shadow-2xl relative flex flex-col justify-between overflow-x-hidden border-x border-slate-800 pb-20 md:pb-10">
+          <div className="app-shell w-full max-w-[430px] md:max-w-3xl lg:max-w-5xl xl:max-w-6xl 2xl:max-w-[1560px] mx-auto min-h-screen bg-slate-900 shadow-2xl relative flex flex-col justify-between overflow-x-hidden border-x border-slate-800 pb-20 md:pb-10">
             <InstallApp />
             <main className="flex-1 w-full">{children}</main>
           </div>
