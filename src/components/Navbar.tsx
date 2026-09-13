@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Drawer from '@/components/Drawer';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
-import { LogOut, Award, Play, LayoutGrid, Tv, Home, ScrollText, Users, BarChart3, Palette } from 'lucide-react';
+import { LogOut, Award, Play, LayoutGrid, Tv, Home, ScrollText, Users, BarChart3, Palette, History } from 'lucide-react';
 
 interface UserSession {
   username: string;
@@ -93,10 +93,12 @@ export default function Navbar() {
       roles: ['super_admin', 'club'],
     },
     {
+      // Editing the sets changes the game for every club at once, so the tab
+      // is the owner's. A club reads the same cards from الخريطة.
       name: 'السيتات',
       href: '/admin',
       icon: LayoutGrid,
-      roles: ['super_admin', 'club'],
+      roles: ['super_admin'],
     },
     {
       name: 'فحص',
@@ -114,6 +116,12 @@ export default function Navbar() {
       name: 'العرض',
       href: '/display',
       icon: Tv,
+      roles: ['super_admin', 'club'],
+    },
+    {
+      name: 'الجلسات',
+      href: '/sessions',
+      icon: History,
       roles: ['super_admin', 'club'],
     },
     {
