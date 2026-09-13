@@ -533,6 +533,54 @@ html, body {
   }
 }
 
+/* --------------------------------------------------------------------------
+   A card shown inside the app — the same card, drawn the same way.
+
+   The winners panel and the winner popup both show a card the caller is about
+   to compare against a piece of paper in somebody's hand. Anything that is not
+   the printed layout makes that comparison slower, so these reuse the sheet's
+   own grid and only add what the paper cannot say: which numbers have come out,
+   and which line took the prize.
+   -------------------------------------------------------------------------- */
+
+.card-paper {
+  background: #ffffff;
+  color: #111111;
+  border-radius: 4px;
+  padding: 4px 5px 5px;
+}
+
+.card-paper .sheet-card-nums {
+  font-size: 12px;
+  padding: 0 2px 2px;
+}
+
+.card-paper .sheet-grid td {
+  height: 24px;
+  font-size: 13px;
+}
+
+/* smaller again, for the running list beside the drum */
+.card-paper.is-small .sheet-card-nums {
+  font-size: 10px;
+}
+
+.card-paper.is-small .sheet-grid td {
+  height: 19px;
+  font-size: 11px;
+}
+
+/* a number that has come out of the drum */
+.card-paper .sheet-grid td.is-out {
+  background: #2ecc71;
+  color: #ffffff;
+}
+
+/* the line that won — ringed, the way a caller would ring it in pen */
+.card-paper .sheet-grid td.is-win {
+  box-shadow: inset 0 0 0 2px #f1c40f;
+}
+
 /* Animations */
 @keyframes popIn {
   0% { transform: scale(0.8); opacity: 0.8; }
