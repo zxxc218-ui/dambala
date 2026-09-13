@@ -3,25 +3,43 @@
 import { useState, useEffect } from 'react';
 import { Loader2, Tv, Info } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import useGame from '@/components/useGame';
 
 export default function DisplayPage() {
-  const [session, setSession] = useState<any>(null);
+  const [remote, setRemote] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  /**
+   * The game is played on the device now, so when this screen is open on the
+   * same device as the game it reads the board directly — no polling, no lag,
+   * and it keeps up with no connection. Opened on a second screen elsewhere, it
+   * falls back to the server, which is up to date once a game has been synced.
+   */
+  const local = useGame();
+  const session = local
+    ? { name: local.name, status: local.status, numbers: local.numbers }
+    : remote;
+
   useEffect(() => {
+    if (local) {
+      setLoading(false);
+      setError('');
+      return;
+    }
     fetchSession();
     // Poll the current session status every 3 seconds
     const interval = setInterval(fetchSession, 3000);
     return () => clearInterval(interval);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Boolean(local)]);
 
   const fetchSession = async () => {
     try {
       const res = await fetch('/api/sessions/current');
       const data = await res.json();
       if (data.success) {
-        setSession(data.session);
+        setRemote(data.session);
         setError('');
       } else {
         setError('تعذر جلب بيانات الجلسة النشطة');
