@@ -18,9 +18,12 @@ import {
   WifiOff,
   CloudUpload,
   CloudOff,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DrawDrum from '@/components/DrawDrum';
+import CardGrid from '@/components/CardGrid';
 import useBallScanner from '@/components/useBallScanner';
 import useOnline from '@/components/useOnline';
 import useGame from '@/components/useGame';
@@ -158,12 +161,23 @@ export default function PlayPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   /** reading balls off their stickers instead of typing them */
   const [scanOn, setScanOn] = useState(false);
+  /** the drum takes the whole screen and everything else gets out of the way */
+  const [focusMode, setFocusMode] = useState(false);
   /** finished games still waiting to reach the server */
   const [queued, setQueued] = useState({ games: 0, numbers: 0 });
   const [syncing, setSyncing] = useState(false);
   const [syncNote, setSyncNote] = useState('');
   /** the cards are on this device, so winners can be named without a connection */
   const [cardsReady, setCardsReady] = useState(false);
+  /** a session the server still thinks is running, waiting to be claimed or closed */
+  const [pendingAdopt, setPendingAdopt] = useState<{
+    id: number | string;
+    name: string;
+    status: string;
+    startedAt?: string;
+    numbers: { number: number; drawOrder: number }[];
+    prizes?: PrizeSettings;
+  } | null>(null);
   const online = useOnline();
 
   const prizes = game?.prizes ?? startPrizes;
@@ -191,7 +205,16 @@ export default function PlayPage() {
           const data = await res.json();
           if (!cancelled && data?.success) {
             if (data.session) {
-              adoptServerSession({ ...data.session, numbers: data.session.numbers ?? [] });
+              const live = { ...data.session, numbers: data.session.numbers ?? [] };
+
+              // A session the server still calls live, with balls already on
+              // it, is the one thing that can quietly mix two games together:
+              // the caller thinks he is starting fresh and is in fact drawing
+              // into a board that already has numbers — and then the winners
+              // are a mix of both nights. An empty one is harmless and just
+              // gets taken over. One with numbers gets asked about.
+              if (live.numbers.length > 0) setPendingAdopt(live);
+              else adoptServerSession(live);
             } else {
               setStartPrizes(normalizePrizes(data.lastPrizes));
             }
@@ -438,6 +461,66 @@ export default function PlayPage() {
     setSyncNote(note);
   };
 
+  /**
+   * Playing takes the whole screen.
+   *
+   * A caller on a stand needs the drum and nothing else — the menus, the tabs
+   * and the banners are all things to read between games. The browser is asked
+   * for real fullscreen too, so a phone loses its address bar and a laptop
+   * loses the tab strip; it can refuse, and the overlay alone is already most
+   * of the benefit.
+   */
+  const enterFocus = () => {
+    setFocusMode(true);
+    document.documentElement.requestFullscreen?.().catch(() => {});
+  };
+
+  const leaveFocus = () => {
+    setFocusMode(false);
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  };
+
+  // Leaving fullscreen with Escape must take the overlay with it, or the caller
+  // is left in a screen with no way back.
+  useEffect(() => {
+    const onChange = () => {
+      if (!document.fullscreenElement) setFocusMode(false);
+    };
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+
+  /** Carry on with the game the server still had open. */
+  const resumePending = () => {
+    if (!pendingAdopt) return;
+    adoptServerSession(pendingAdopt);
+    setPendingAdopt(null);
+  };
+
+  /**
+   * Close the old game for good and start clean.
+   *
+   * The close is told to the server as well as forgotten here — leaving it
+   * open would mean being asked the same question again tomorrow, and would
+   * leave a session that another device could still walk into.
+   */
+  const discardPending = async () => {
+    setPendingAdopt(null);
+    try {
+      await fetch('/api/sessions/current/status', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'finished' }),
+      });
+    } catch {
+      // no connection: it stays open on the server and the next sync closes it
+    }
+  };
+
+  /** The card itself, for showing a winner rather than describing one. */
+  const cardOf = (setNo: number, cardNo: number) =>
+    localCardIndex()?.cards.find((c) => c.setNo === setNo && c.cardNo === cardNo) ?? null;
+
   const handleCheckAllWinners = () => {
     if (!game) return;
     const index = localCardIndex();
@@ -507,7 +590,48 @@ export default function PlayPage() {
           </div>
         ) : !game ? (
           /* NO ACTIVE SESSION */
-          <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6 text-center shadow-xl animate-[popIn_0.3s_ease-out] mt-6">
+          <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6 text-center shadow-xl animate-[popIn_0.3s_ease-out] mt-6 w-full md:max-w-[620px] md:me-auto">
+
+            {/* A game the server never saw the end of. Left to itself it gets
+                picked up silently and the next night's numbers land on top of
+                the last night's — which is how one session ends up showing the
+                other's winners. */}
+            {pendingAdopt && (
+              <div className="mb-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 text-right">
+                <p
+                  className="text-[11px] font-black text-amber-400 leading-relaxed"
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
+                >
+                  كو جلسة سابقة ما انسكرت: «{pendingAdopt.name}»، بيها{' '}
+                  <span className="font-mono">{pendingAdopt.numbers.length}</span> رقم نازل.
+                </p>
+                <p
+                  className="text-[10px] text-slate-400 mt-1 leading-relaxed"
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
+                >
+                  إذا تكملها، الأرقام القديمة تبقى بالدورق ويحسبون وياك. وإذا تبدي جديدة، هاي
+                  تنسكر وتنحفظ بخانة الجلسات.
+                </p>
+
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={resumePending}
+                    className="flex-1 py-2 px-3 text-[11px] font-black border border-amber-500/40 hover:bg-amber-500/10 text-amber-400 rounded-xl transition-all cursor-pointer"
+                    style={{ fontFamily: 'Cairo, sans-serif' }}
+                  >
+                    كمّل هاي الجلسة
+                  </button>
+                  <button
+                    onClick={() => void discardPending()}
+                    className="flex-1 py-2 px-3 text-[11px] font-black bg-emerald-500 hover:bg-emerald-600 text-ink-fixed rounded-xl transition-all cursor-pointer"
+                    style={{ fontFamily: 'Cairo, sans-serif' }}
+                  >
+                    اسكرها وابدي جديدة
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="text-center mb-6">
               <div className="w-14 h-14 bg-emerald-500/10 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-500/20">
                 <Sparkles size={28} />
@@ -569,10 +693,53 @@ export default function PlayPage() {
             </form>
           </div>
         ) : (
-          /* PLAY SESSION RUNNING */
-          <div className="flex flex-col gap-4">
+          /* PLAY SESSION RUNNING
+             In focus mode the drum takes the whole screen: the overlay covers
+             the navigation and the settings, and only the things a caller uses
+             while balls are coming out are left. */
+          <div
+            className={
+              focusMode
+                ? 'fixed inset-0 z-50 bg-slate-950 overflow-y-auto px-3 py-3 flex flex-col gap-3'
+                : 'flex flex-col gap-4 w-full md:max-w-[620px] md:me-auto'
+            }
+          >
 
-            {/* A slim bar: the game keeps the screen, the rest lives behind it */}
+            {focusMode ? (
+              /* one line back out, and the prize counters that matter mid-game */
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={leaveFocus}
+                  className="flex items-center gap-1.5 py-1.5 px-2.5 text-[11px] font-bold text-slate-300 border border-slate-700 hover:bg-slate-800 rounded-lg transition-all cursor-pointer flex-shrink-0"
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
+                >
+                  <Minimize2 size={13} />
+                  <span>تصغير</span>
+                </button>
+
+                <div className="flex-1 flex flex-wrap gap-1 justify-end">
+                  {prizeBoard.map((p) => (
+                    <span
+                      key={p.key}
+                      className={`px-2 py-1 rounded-lg border text-[9px] font-black flex items-center gap-1 ${
+                        p.closed
+                          ? 'bg-slate-950 border-slate-850 text-slate-600'
+                          : p.won > 0
+                          ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
+                          : 'bg-slate-950 border-slate-800 text-slate-400'
+                      }`}
+                      style={{ fontFamily: 'Cairo, sans-serif' }}
+                    >
+                      {p.label}
+                      <span className="font-mono" style={{ direction: 'ltr' }}>
+                        {p.won}/{p.count}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : (
+            /* A slim bar: the game keeps the screen, the rest lives behind it */
             <div className="bg-slate-900 border border-slate-800 rounded-2xl px-3 py-2.5 flex items-center justify-between gap-3">
               <button
                 onClick={() => setMenuOpen(true)}
@@ -584,6 +751,15 @@ export default function PlayPage() {
               </button>
 
               <div className="flex items-center gap-2 min-w-0">
+                <button
+                  onClick={enterFocus}
+                  title="وضع اللعب — الدورق يملأ الشاشة"
+                  className="flex items-center gap-1 py-1.5 px-2 rounded-lg text-[10px] font-bold border bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700 transition-colors cursor-pointer flex-shrink-0"
+                  style={{ fontFamily: 'Cairo, sans-serif' }}
+                >
+                  <Maximize2 size={12} />
+                  <span>تكبير</span>
+                </button>
                 <button
                   onClick={() => setScanOn((v) => !v)}
                   aria-pressed={scanOn}
@@ -616,6 +792,7 @@ export default function PlayPage() {
                 </span>
               </div>
             </div>
+            )}
 
             {error && (
               <div className="bg-red-500/10 border border-red-500/25 text-red-400 p-3 rounded-xl text-xs font-bold text-center">
@@ -623,7 +800,7 @@ export default function PlayPage() {
               </div>
             )}
 
-            {prizeNotice && (
+            {prizeNotice && !focusMode && (
               <div className="bg-amber-500/10 border border-amber-500/25 text-amber-400 p-3 rounded-xl text-[11px] font-bold text-center leading-relaxed" style={{ fontFamily: 'Cairo, sans-serif' }}>
                 {prizeNotice}
               </div>
@@ -631,7 +808,7 @@ export default function PlayPage() {
 
             {/* The connection is worth a line only because it explains the
                 winner check — the game itself does not care either way. */}
-            {(!online || !cardsReady) && (
+            {(!online || !cardsReady) && !focusMode && (
               <div
                 className={`rounded-xl border p-3 flex items-start gap-2.5 text-[11px] font-bold leading-relaxed ${
                   cardsReady
@@ -867,7 +1044,7 @@ export default function PlayPage() {
 
         {/* -------------------- 0. POPUP MODAL: PRIZE RULES -------------------- */}
         {prizeModal !== null && (
-          <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50 animate-[fadeIn_0.2s_ease-out]">
+          <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-[60] animate-[fadeIn_0.2s_ease-out]">
             <div className="bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-3xl shadow-2xl w-full sm:max-w-md max-h-[92vh] flex flex-col">
 
               <div className="p-5 pb-3 border-b border-slate-800 flex items-start justify-between gap-3">
@@ -931,8 +1108,8 @@ export default function PlayPage() {
 
         {/* -------------------- 1. POPUP MODAL: NEW WINNER ALERT -------------------- */}
         {activeNewWinners.length > 0 && (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-[fadeIn_0.2s_ease-out]">
-            <div className="bg-slate-900 border border-emerald-500/50 rounded-3xl shadow-2xl max-w-sm w-full p-5 text-center relative animate-[popIn_0.3s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards]">
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-[60] animate-[fadeIn_0.2s_ease-out]">
+            <div className="bg-slate-900 border border-emerald-500/50 rounded-3xl shadow-2xl max-w-lg w-full p-5 text-center relative animate-[popIn_0.3s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards]">
 
               <button
                 onClick={() => setActiveNewWinners([])}
@@ -952,31 +1129,64 @@ export default function PlayPage() {
                 تم اكتمال خطوط اللعب للبطاقات التالية بفعل الرقم الأخير:
               </p>
 
-              <div className="flex flex-col gap-2 max-h-40 overflow-y-auto mb-5 text-right">
-                {activeNewWinners.map((winner, idx) => (
-                  <div
-                    key={idx}
-                    className="p-2.5 bg-slate-950 border border-slate-800/80 rounded-xl flex justify-between items-center"
-                  >
-                    <span className="font-bold text-slate-200 text-xs flex flex-col items-start gap-0.5">
-                      <span>السيت: {formatSetNo(winner.setNo)} | كرت: {formatCardNo(winner.cardNo)}</span>
-                      {winner.place !== undefined && winner.count ? (
-                        <span className="text-[9px] font-black text-slate-500" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                          الفائز {winner.place} من {winner.count}
+              {/* The card itself, not a description of it. Whoever is holding
+                  the winning card can match it at a glance, and whoever is
+                  calling can see the line filled in rather than take it on
+                  trust. The picture goes on the left and what it means on the
+                  right, so the eye reads the proof first. */}
+              <div className="flex flex-col gap-2.5 max-h-[52vh] overflow-y-auto mb-5 text-right">
+                {activeNewWinners.map((winner, idx) => {
+                  const card = cardOf(winner.setNo, winner.cardNo);
+                  return (
+                    <div
+                      key={idx}
+                      className="p-2.5 bg-slate-950 border border-slate-800/80 rounded-xl flex items-center gap-3"
+                    >
+                      {card && (
+                        <div className="flex-1 min-w-0 max-w-[230px]">
+                          <CardGrid
+                            card={card}
+                            drawn={new Set(numbers.map((n) => n.number))}
+                            won={winner.key ?? null}
+                          />
+                        </div>
+                      )}
+
+                      <div className="flex flex-col items-start gap-1 flex-shrink-0">
+                        <span
+                          className="font-black text-slate-200 text-xs leading-relaxed"
+                          style={{ fontFamily: 'Cairo, sans-serif' }}
+                        >
+                          سيت {formatSetNo(winner.setNo)}
+                          <br />
+                          بطاقة {formatCardNo(winner.cardNo)}
                         </span>
-                      ) : null}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded-lg font-black text-[10px] flex-shrink-0 ${
-                      winner.winType === 'البطاقة كاملة (دمبلة)'
-                        ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                        : winner.winType === 'الزوايا'
-                        ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
-                        : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                    }`} style={{ fontFamily: 'Cairo, sans-serif' }}>
-                      {winner.winType}
-                    </span>
-                  </div>
-                ))}
+
+                        <span
+                          className={`px-2 py-0.5 rounded-lg font-black text-[10px] ${
+                            winner.winType === 'البطاقة كاملة (دمبلة)'
+                              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                              : winner.winType === 'الزوايا'
+                              ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
+                              : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                          }`}
+                          style={{ fontFamily: 'Cairo, sans-serif' }}
+                        >
+                          {winner.winType}
+                        </span>
+
+                        {winner.place !== undefined && winner.count ? (
+                          <span
+                            className="text-[9px] font-black text-slate-500"
+                            style={{ fontFamily: 'Cairo, sans-serif' }}
+                          >
+                            الفائز {winner.place} من {winner.count}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
               <button
@@ -992,7 +1202,7 @@ export default function PlayPage() {
 
         {/* -------------------- 2. POPUP MODAL: ALL WINNERS REPORT -------------------- */}
         {allWinners !== null && (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-[fadeIn_0.2s_ease-out]">
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-[60] animate-[fadeIn_0.2s_ease-out]">
             <div className="bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl max-w-sm w-full p-5 max-h-[80vh] overflow-y-auto relative">
 
               <button
