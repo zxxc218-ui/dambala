@@ -30,6 +30,13 @@ function scoped(query: any, user: UserProfile) {
   return user.clubId === null ? query.is('club_id', null) : query.eq('club_id', user.clubId);
 }
 
+/** A fresh per-prize counter, so a new prize never needs a second edit here. */
+function emptyTally(): Record<PrizeKey, number> {
+  const out = {} as Record<PrizeKey, number>;
+  for (const key of PRIZE_ORDER) out[key] = 0;
+  return out;
+}
+
 interface CardTally {
   setNo: number;
   cardNo: number;
@@ -153,6 +160,12 @@ export async function GET(req: NextRequest) {
         for (const winner of standings[key].winners) {
           prizeTotals[key]++;
 
+          // A prize won by a half or a whole set belongs to no single card, so
+          // it counts toward the prize totals and stops there — this table is
+          // about which cards win, and crediting one of the six would be a
+          // guess.
+          if (winner.cardNo === undefined) continue;
+
           const id = `${winner.setNo}:${winner.cardNo}`;
           let entry = tally.get(id);
           if (!entry) {
@@ -160,7 +173,7 @@ export async function GET(req: NextRequest) {
               setNo: winner.setNo,
               cardNo: winner.cardNo,
               wins: 0,
-              byPrize: { row1: 0, row2: 0, row3: 0, corners: 0, fullCard: 0 },
+              byPrize: emptyTally(),
               sessions: new Set<string>(),
             };
             tally.set(id, entry);
