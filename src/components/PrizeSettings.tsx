@@ -1,71 +1,51 @@
 'use client';
 
 import { Minus, Plus } from 'lucide-react';
+import {
+  DEFAULT_PRIZES,
+  MAX_PRIZE_COUNT,
+  PRIZE_LABELS,
+  PRIZE_ORDER,
+  PRIZE_SCOPE,
+  PrizeKey,
+  PrizeRule,
+  PrizeSettings,
+  normalizePrizes,
+} from '@/lib/prizes';
 
 /**
  * The prize rules panel.
  *
- * Mirrors src/lib/prizes.ts: every prize can be switched off and carries
- * "how many times it pays" before it closes.
+ * The rules themselves live in src/lib/prizes — this only draws them. It used
+ * to carry its own copy of the list, which is how a panel ends up offering a
+ * prize the game does not score, or missing one it does.
  */
 
-export type PrizeKey = 'row1' | 'row2' | 'row3' | 'corners' | 'fullCard';
-
-export interface PrizeRule {
-  enabled: boolean;
-  count: number;
-}
-
-export type PrizeSettings = Record<PrizeKey, PrizeRule>;
-
-export const PRIZE_ORDER: PrizeKey[] = ['row1', 'row2', 'row3', 'corners', 'fullCard'];
-
-export const PRIZE_LABELS: Record<PrizeKey, string> = {
-  row1: 'الخط الأول',
-  row2: 'الخط الثاني',
-  row3: 'الخط الثالث',
-  corners: 'الزوايا',
-  fullCard: 'البطاقة كاملة (دمبلة)',
-};
+export { DEFAULT_PRIZES, PRIZE_LABELS, PRIZE_ORDER, normalizePrizes };
+export type { PrizeKey, PrizeRule, PrizeSettings };
 
 const PRIZE_HINTS: Record<PrizeKey, string> = {
   row1: 'السطر الأول من الكرت كامل',
   row2: 'السطر الثاني من الكرت كامل',
   row3: 'السطر الثالث من الكرت كامل',
   corners: 'أول وآخر رقم بالسطر الأول + أول وآخر رقم بالسطر الثالث',
+  halfSetCorners: 'زوايا عمود كامل: أطراف السطر الأعلى من البطاقة اللي فوق + أطراف السطر الأسفل من البطاقة اللي تحت',
+  setCorners: 'أطراف الورقة الأربع: فوق بطاقة ١ وبطاقة ٤، وتحت بطاقة ٣ وبطاقة ٦',
   fullCard: 'الـ 15 رقم كلها',
 };
 
-export const DEFAULT_PRIZES: PrizeSettings = {
-  row1: { enabled: true, count: 1 },
-  row2: { enabled: true, count: 1 },
-  row3: { enabled: true, count: 1 },
-  corners: { enabled: true, count: 1 },
-  fullCard: { enabled: true, count: 1 },
+/** What wins it — a caller reading the list should not have to guess. */
+const SCOPE_TAG: Record<PrizeKey, string> = {
+  row1: 'بطاقة',
+  row2: 'بطاقة',
+  row3: 'بطاقة',
+  corners: 'بطاقة',
+  fullCard: 'بطاقة',
+  halfSetCorners: 'نصف سيت',
+  setCorners: 'سيت كامل',
 };
 
-const MAX_COUNT = 99;
-
-export function normalizePrizes(raw: any): PrizeSettings {
-  const out = {} as PrizeSettings;
-  for (const key of PRIZE_ORDER) {
-    const fallback = DEFAULT_PRIZES[key];
-    const given = raw && typeof raw === 'object' ? raw[key] : null;
-    if (!given || typeof given !== 'object') {
-      out[key] = { ...fallback };
-      continue;
-    }
-    const count = Number(given.count);
-    out[key] = {
-      enabled: given.enabled === undefined ? fallback.enabled : Boolean(given.enabled),
-      count:
-        !isFinite(count) || count < 1
-          ? fallback.count
-          : Math.min(Math.floor(count), MAX_COUNT),
-    };
-  }
-  return out;
-}
+const MAX_COUNT = MAX_PRIZE_COUNT;
 
 interface Props {
   value: PrizeSettings;
@@ -125,10 +105,21 @@ export default function PrizeSettingsPanel({ value, onChange, disabled, status }
 
                 <div className="min-w-0">
                   <div
-                    className="text-xs font-black text-slate-100 truncate"
+                    className="text-xs font-black text-slate-100 truncate flex items-center gap-1.5"
                     style={{ fontFamily: 'Cairo, sans-serif' }}
                   >
-                    {PRIZE_LABELS[key]}
+                    <span className="truncate">{PRIZE_LABELS[key]}</span>
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[8px] font-black flex-shrink-0 ${
+                        PRIZE_SCOPE[key] === 'set'
+                          ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                          : PRIZE_SCOPE[key] === 'half'
+                          ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
+                          : 'bg-slate-800 text-slate-400 border border-slate-700'
+                      }`}
+                    >
+                      {SCOPE_TAG[key]}
+                    </span>
                   </div>
                   <div
                     className="text-[9px] text-slate-500 truncate"
@@ -196,7 +187,7 @@ export default function PrizeSettingsPanel({ value, onChange, disabled, status }
         className="text-[9px] text-slate-500 leading-relaxed text-center mt-1"
         style={{ fontFamily: 'Cairo, sans-serif' }}
       >
-        العدد يعني كم بطاقة تربح هذه الجائزة قبل ما تنسد. تكدر تغيّره حتى وسط الجولة.
+        العدد يعني كم مرة تنعطى هذه الجائزة قبل ما تنسد — بطاقة، أو نصف سيت، أو سيت كامل حسب نوعها. تكدر تغيّره حتى وسط الجولة.
       </p>
     </div>
   );
