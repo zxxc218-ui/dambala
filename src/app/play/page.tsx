@@ -179,7 +179,7 @@ function WinnerRow({
       } ${highlighted ? 'border-emerald-500/40' : 'border-slate-800'}`}
     >
       {picture && (
-        <div className={`min-w-0 ${wide ? 'w-full sm:flex-1' : 'flex-1 max-w-[230px]'}`}>
+        <div className={`min-w-0 ${wide ? 'w-full sm:flex-1' : 'flex-1 max-w-[300px] xl:max-w-[340px]'}`}>
           <CardGrid
             columns={picture.columns}
             drawn={drawn}
@@ -242,7 +242,7 @@ function WinnersBoard({
   ready: boolean;
 }) {
   return (
-    <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-3 flex flex-col gap-2.5">
+    <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-3 flex flex-col gap-2.5 md:h-full">
       <div className="flex items-baseline justify-between">
         <h3
           className="text-[11px] font-black text-slate-300 flex items-center gap-1.5"
@@ -270,7 +270,7 @@ function WinnersBoard({
           أول ما تربح بطاقة أو نصف سيت أو سيت، تنزل هنا.
         </p>
       ) : (
-        <div className="flex flex-col gap-2 max-h-[70vh] overflow-y-auto">
+        <div className="flex flex-col gap-2 overflow-y-auto max-h-[70vh] md:max-h-none md:flex-1 md:min-h-0">
           {rows.map((w, i) => (
             <WinnerRow
               key={`${w.key}-${w.setNo}-${w.cardNo ?? w.half ?? 'set'}-${i}`}
@@ -865,12 +865,12 @@ export default function PlayPage() {
           <div
             className={
               focusMode
-                ? 'fixed inset-0 z-50 bg-slate-950 overflow-y-auto p-3 flex flex-col md:flex-row md:items-start md:gap-4'
-                : 'flex flex-col md:flex-row md:items-start md:gap-4'
+                ? 'fixed inset-0 z-50 bg-slate-950 overflow-y-auto p-3 flex flex-col md:flex-row md:items-stretch md:gap-4'
+                : 'flex flex-col md:flex-row md:items-stretch md:gap-4'
             }
           >
           <div
-            className={`flex flex-col gap-4 w-full md:w-[620px] md:flex-shrink-0 ${
+            className={`flex flex-col gap-4 w-full md:w-[620px] xl:w-[660px] md:flex-shrink-0 ${
               focusMode ? 'gap-3' : ''
             }`}
           >
@@ -1063,7 +1063,7 @@ export default function PlayPage() {
           </div>
 
             {/* the night's winners, beside the drum */}
-            <div className="mt-4 md:mt-0 md:flex-1 md:min-w-0">
+            <div className="mt-4 md:mt-0 md:flex-1 md:min-w-0 md:flex md:flex-col">
               <WinnersBoard
                 rows={wonCards}
                 drawn={new Set(numbers.map((n) => n.number))}
