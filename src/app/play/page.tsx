@@ -1,25 +1,51 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Navbar from '@/components/Navbar';
-import { Play, Pause, RotateCcw, Award, Sparkles, Loader2, X, Gift, Check, SlidersHorizontal, ScanLine, QrCode, WifiOff, CloudUpload } from 'lucide-react';
+import {
+  Play,
+  Pause,
+  RotateCcw,
+  Award,
+  Sparkles,
+  Loader2,
+  X,
+  Gift,
+  Check,
+  SlidersHorizontal,
+  ScanLine,
+  QrCode,
+  WifiOff,
+  CloudUpload,
+  CloudOff,
+} from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DrawDrum from '@/components/DrawDrum';
 import useBallScanner from '@/components/useBallScanner';
-import useOnline, { backOnline, goneOffline } from '@/components/useOnline';
+import useOnline from '@/components/useOnline';
+import useGame from '@/components/useGame';
 import { computeStandings, orderMap, toStatus } from '@/lib/prizes';
-import { WIN_LABELS, winsCompletedBy } from '@/lib/cardShape';
+import { WIN_LABELS, winsCompletedBy, CardIndex } from '@/lib/cardShape';
 import { ensureLocalCards, localCardIndex } from '@/lib/localCards';
 import {
-  clearBoard,
-  dropOpsForOtherSessions,
-  flushOutbox,
-  loadBoard,
-  pendingOps,
-  queueOp,
-  queueUndo,
-  saveBoard,
-} from '@/lib/offline';
+  DrawnNumber,
+  adoptServerSession,
+  drawNumber,
+  drawRandom,
+  getGame,
+  resetNumbers,
+  setPrizes as savePrizesLocally,
+  setStatus,
+  startGame,
+  undoLast,
+} from '@/lib/gameStore';
+import {
+  archiveCurrentGame,
+  flushPendingGames,
+  pendingCount,
+  pendingNumbers,
+  syncRunningGame,
+} from '@/lib/gameSync';
 import Drawer from '@/components/Drawer';
 import Link from 'next/link';
 import PrizeSettingsPanel, {
@@ -31,13 +57,17 @@ import PrizeSettingsPanel, {
   normalizePrizes,
 } from '@/components/PrizeSettings';
 
-interface DrawSession {
-  id: string;
-  name: string;
-  status: 'active' | 'paused' | 'finished';
-  numbers: { number: number; drawOrder: number }[];
-  prizes?: PrizeSettings;
-}
+/**
+ * The play screen.
+ *
+ * Every part of a game — drawing, undoing, pausing, the prize counters, who has
+ * won — happens on this device, out of src/lib/gameStore and the cards cached
+ * here. Not one of them touches the network. That is the whole point: the
+ * caller never waits on a request, so the screen cannot fall behind the drum,
+ * and a dead connection changes nothing about how the game plays.
+ *
+ * The server hears about the game when it is over.
+ */
 
 /** live counter for one prize: how many cards have taken it so far */
 interface PrizeStatus {
@@ -66,235 +96,273 @@ interface Winner {
   fullCard?: boolean;
 }
 
+/** Winners and prize standings for a board, worked out here on the device. */
+function readBoard(
+  index: CardIndex,
+  numbers: DrawnNumber[],
+  prizes: PrizeSettings,
+  justDrawn?: number
+) {
+  const orders = orderMap(numbers.map((n) => ({ number: n.number, draw_order: n.drawOrder })));
+  const standings = computeStandings(index, orders, prizes);
+
+  const fresh: Winner[] = [];
+  if (justDrawn !== undefined) {
+    const before = new Set(numbers.filter((n) => n.number !== justDrawn).map((n) => n.number));
+    for (const cardIdx of index.byNumber.get(justDrawn) || []) {
+      const card = index.cards[cardIdx];
+      for (const key of winsCompletedBy(card, justDrawn, before)) {
+        if (!prizes[key].enabled) continue;
+        const standing = standings[key];
+        const place = standing.winners.findIndex(
+          (w) => w.setNo === card.setNo && w.cardNo === card.cardNo
+        );
+        if (place === -1) continue; // the prize was already full
+        fresh.push({
+          setNo: card.setNo,
+          cardNo: card.cardNo,
+          winType: WIN_LABELS[key],
+          key,
+          place: place + 1,
+          count: standing.count,
+        });
+      }
+    }
+  }
+
+  return { standings, fresh, status: toStatus(standings) };
+}
+
 export default function PlayPage() {
-  const [session, setSession] = useState<DrawSession | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [drawing, setDrawing] = useState(false);
+  const game = useGame();
+  const [booting, setBooting] = useState(true);
   const [newSessionName, setNewSessionName] = useState('');
-  const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
 
-  // Manual Draw State
   const [manualNumber, setManualNumber] = useState('');
-  /** how many number requests are still in flight (the UI does not wait on them) */
-  const [pendingCount, setPendingCount] = useState(0);
-  const [undoing, setUndoing] = useState(false);
 
   // New Winner Alerts State
   const [activeNewWinners, setActiveNewWinners] = useState<Winner[]>([]);
-  
+
   // All Winners Report State
   const [allWinners, setAllWinners] = useState<Winner[] | null>(null);
-  const [loadingAllWinners, setLoadingAllWinners] = useState(false);
 
-  // Prizes: which lines pay, how many times, and what has been won so far.
-  const [prizes, setPrizes] = useState<PrizeSettings>(DEFAULT_PRIZES);
-  const [prizeStatus, setPrizeStatus] = useState<PrizeStatus[] | null>(null);
+  /** the rules the start screen opens on, remembered from the club's last game */
+  const [startPrizes, setStartPrizes] = useState<PrizeSettings>(DEFAULT_PRIZES);
   /** 'start' = confirm before the game begins, 'edit' = change them mid-game */
   const [prizeModal, setPrizeModal] = useState<null | 'start' | 'edit'>(null);
   /** the rules being edited in the modal, kept apart until they are confirmed */
   const [draftPrizes, setDraftPrizes] = useState<PrizeSettings>(DEFAULT_PRIZES);
-  const [savingPrizes, setSavingPrizes] = useState(false);
   const [prizeNotice, setPrizeNotice] = useState('');
   /** the slide-over holding the session controls */
   const [menuOpen, setMenuOpen] = useState(false);
   /** reading balls off their stickers instead of typing them */
   const [scanOn, setScanOn] = useState(false);
-  /** draws that could not be sent yet, waiting for the connection */
-  const [waiting, setWaiting] = useState(0);
-  /** the board came off this device rather than the server */
-  const [fromCache, setFromCache] = useState(false);
+  /** finished games still waiting to reach the server */
+  const [queued, setQueued] = useState({ games: 0, numbers: 0 });
+  const [syncing, setSyncing] = useState(false);
+  const [syncNote, setSyncNote] = useState('');
   /** the cards are on this device, so winners can be named without a connection */
   const [cardsReady, setCardsReady] = useState(false);
   const online = useOnline();
 
+  const prizes = game?.prizes ?? startPrizes;
+  const refreshQueue = () => setQueued({ games: pendingCount(), numbers: pendingNumbers() });
+
+  /* ------------------------------------------------------------------ */
+  /* boot                                                                */
+  /* ------------------------------------------------------------------ */
 
   /**
-   * Read the session from the server.
-   * `silent` re-syncs in place without blanking the screen behind a spinner —
-   * used after an undo or a rejected number, where the UI is already on screen.
+   * A game already on this device wins outright — no request is made, so a
+   * reload in the middle of a game is instant and works with no connection.
+   * Only when this device has no game do we ask the server whether the club has
+   * one running somewhere else, and take it over.
    */
-  const fetchCurrentSession = async (silent = false) => {
-    if (!silent) setLoading(true);
-    try {
-      const res = await fetch('/api/sessions/current');
-      const data = await res.json();
-      if (data.success) {
-        const live = data.session ? { ...data.session, numbers: data.session.numbers ?? [] } : null;
-        setSession(live);
-        setFromCache(false);
-        backOnline();
-
-        // keep a copy on this device so a reload without a connection still
-        // shows the game exactly where it was
-        if (live) {
-          saveBoard({
-            sessionId: String(live.id),
-            name: live.name,
-            status: live.status,
-            numbers: live.numbers,
-            savedAt: Date.now(),
-          });
-          dropOpsForOtherSessions(String(live.id));
-        } else {
-          clearBoard();
-        }
-        setWaiting(pendingOps().length);
-
-        // A running game keeps its own rules; with no game we open on whatever
-        // this club used last time, so the start screen needs no re-typing.
-        setPrizes(normalizePrizes(data.session ? data.session.prizes : data.lastPrizes));
-        setPrizeStatus(data.prizeStatus ?? null);
-        if (data.prizesColumnMissing) {
-          setPrizeNotice(
-            'إعدادات الجوائز ما راح تنحفظ: شغّل السكربت db/prizes.sql في Supabase مرة وحدة.'
-          );
-        }
-      }
-    } catch (err) {
-      // The server could not be reached. Rather than an empty screen, show the
-      // board as this device last knew it and carry on playing into the outbox.
-      goneOffline();
-      const saved = loadBoard();
-      if (saved) {
-        setSession((prev) =>
-          prev ?? {
-            id: saved.sessionId,
-            name: saved.name,
-            status: saved.status as DrawSession['status'],
-            numbers: saved.numbers,
-          }
-        );
-        setFromCache(true);
-      }
-      setWaiting(pendingOps().length);
-      console.error('Failed to fetch current session:', err);
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  };
-
-  // Fetch current session on mount. `loading` already starts true, so this asks
-  // for the silent read and drops the spinner when the answer arrives — setting
-  // loading true again here would only cost a render.
   useEffect(() => {
-    void fetchCurrentSession(true).finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let cancelled = false;
+
+    (async () => {
+      refreshQueue();
+
+      if (!getGame()) {
+        try {
+          const res = await fetch('/api/sessions/current');
+          const data = await res.json();
+          if (!cancelled && data?.success) {
+            if (data.session) {
+              adoptServerSession({ ...data.session, numbers: data.session.numbers ?? [] });
+            } else {
+              setStartPrizes(normalizePrizes(data.lastPrizes));
+            }
+            if (data.prizesColumnMissing) {
+              setPrizeNotice(
+                'إعدادات الجوائز ما راح تنحفظ بالسيرفر: شغّل السكربت db/prizes.sql في Supabase مرة وحدة.'
+              );
+            }
+          }
+        } catch {
+          // no connection and no game here: the start screen still works, and
+          // the game that gets started will simply be uploaded later
+        }
+      }
+
+      if (!cancelled) setBooting(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   /**
-   * Quietly keep a copy of the cards on this device. It is what lets the game
-   * still name winners once the connection is gone, and it costs one small
-   * download while everything is working.
+   * Keep a copy of the cards on this device. It is what lets the game name
+   * winners with no connection, and costs one small download while there is one.
    */
   useEffect(() => {
     void ensureLocalCards().then((idx) => setCardsReady(Boolean(idx)));
   }, [online]);
 
   /**
-   * Drain the outbox whenever the connection comes back, then re-read the board
-   * so the screen ends up agreeing with the server rather than with itself.
+   * Upload finished games — never while one is being played.
+   *
+   * The guard is the rule the caller asked for: no request leaves this device
+   * while a game is live, so nothing can compete with the drum for attention.
    */
+  const playing = game?.status === 'active';
+
   useEffect(() => {
+    if (!online || playing) return;
+    if (pendingCount() === 0) return;
+
     let cancelled = false;
-
-    const drain = async () => {
-      if (pendingOps().length === 0) return;
-      const { left } = await flushOutbox();
-      if (cancelled) return;
-      setWaiting(left);
-      if (left === 0) {
-        backOnline();
-        await fetchCurrentSession(true);
-      }
+    const run = async () => {
+      const { left } = await flushPendingGames();
+      if (!cancelled) refreshQueue();
+      return left;
     };
 
-    const onBack = () => {
-      void drain();
-    };
-
-    window.addEventListener('online', onBack);
-    if (online) void drain();
-
-    // a connection can return without the browser firing 'online'
+    void run();
     const poll = setInterval(() => {
-      if (pendingOps().length > 0) void drain();
-    }, 15000);
+      if (pendingCount() > 0) void run();
+    }, 30000);
 
     return () => {
       cancelled = true;
-      window.removeEventListener('online', onBack);
       clearInterval(poll);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [online]);
+  }, [online, playing, queued.games]);
+
+  /* ------------------------------------------------------------------ */
+  /* the board                                                           */
+  /* ------------------------------------------------------------------ */
+
+  const numbers = useMemo(() => game?.numbers ?? [], [game]);
+
+  /** The prize counters, recomputed here whenever the board moves. */
+  const prizeStatus = useMemo(() => {
+    const index = cardsReady ? localCardIndex() : null;
+    if (!index || !game) return null;
+    return readBoard(index, game.numbers, game.prizes).status;
+  }, [game, cardsReady]);
+
+  const announce = useCallback(
+    (board: DrawnNumber[], justDrawn: number) => {
+      const index = localCardIndex();
+      if (!index || !game) return;
+      const { fresh } = readBoard(index, board, game.prizes, justDrawn);
+      if (fresh.length === 0) return;
+      // added, not replaced: a fast run of numbers must not lose an alert
+      setActiveNewWinners((prev) => [...prev, ...fresh].slice(-20));
+    },
+    [game]
+  );
 
   /**
-   * Pressing "ابدأ" opens the prize rules first — the caller either changes a
-   * count or hits موافق and the game starts. The rules come pre-filled from the
-   * last game, so the fast path is a single tap.
+   * Put a number on the board.
+   *
+   * One synchronous call. Whether it came from the keypad, the grid, the random
+   * button or a scanned sticker, it lands the same way and in the order it was
+   * pressed — there is no request to arrive late and no state to be stale.
    */
+  const submitNumber = useCallback(
+    (num: number) => {
+      const result = drawNumber(num);
+      if (!result.ok) {
+        setError(result.reason);
+        return;
+      }
+      setError('');
+      announce(result.game.numbers, result.number);
+    },
+    [announce]
+  );
+
+  const handleDrawRandomNumber = useCallback(() => {
+    const result = drawRandom();
+    if (!result.ok) {
+      setError(result.reason);
+      return;
+    }
+    setError('');
+    announce(result.game.numbers, result.number);
+  }, [announce]);
+
+  const handleUndoLast = useCallback(() => {
+    const removed = undoLast();
+    if (removed === null) return;
+    setError('');
+    setActiveNewWinners([]);
+    setAllWinners(null);
+  }, []);
+
+  /**
+   * A scanned ball goes through exactly the same path as a tapped one.
+   */
+  const scan = useBallScanner({
+    enabled: scanOn && game?.status === 'active',
+    onScan: (ball) => submitNumber(ball),
+  });
+
+  const handleAddManualNumber = (e: React.FormEvent) => {
+    e.preventDefault();
+    const num = parseInt(manualNumber, 10);
+    if (isNaN(num) || num < 1 || num > 90) {
+      setError('يرجى إدخال رقم صحيح بين 1 و 90');
+      return;
+    }
+    setManualNumber(''); // cleared first so the next number can be typed at once
+    submitNumber(num);
+  };
+
+  const handleNumberClick = (num: number) => submitNumber(num);
+
+  /* ------------------------------------------------------------------ */
+  /* the session                                                         */
+  /* ------------------------------------------------------------------ */
+
   const handleStartSession = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setDraftPrizes(prizes);
+    setDraftPrizes(startPrizes);
     setPrizeModal('start');
   };
 
-  const confirmStart = async () => {
-    setCreating(true);
+  /** Starting a game is instant and local — it does not need the server at all. */
+  const confirmStart = () => {
+    startGame(newSessionName, draftPrizes);
+    setStartPrizes(draftPrizes);
+    setNewSessionName('');
+    setAllWinners(null);
+    setActiveNewWinners([]);
+    setPrizeModal(null);
     setError('');
-    try {
-      const res = await fetch('/api/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newSessionName, prizes: draftPrizes }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSession({ ...data.session, numbers: data.session.numbers ?? [] });
-        setPrizes(normalizePrizes(data.session.prizes ?? draftPrizes));
-        setPrizeStatus(null);
-        setNewSessionName('');
-        setAllWinners(null);
-        setActiveNewWinners([]);
-        setPrizeModal(null);
-        if (data.prizesHint) setPrizeNotice(data.prizesHint);
-      } else {
-        setError(data.message);
-      }
-    } catch (err) {
-      setError('تعذر الاتصال بالخادم لبدء الجلسة');
-    } finally {
-      setCreating(false);
-    }
   };
 
-  /** Change the rules while a game is running. */
-  const savePrizes = async () => {
-    setSavingPrizes(true);
-    setError('');
-    try {
-      const res = await fetch('/api/sessions/current/prizes', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prizes: draftPrizes }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setPrizes(normalizePrizes(data.prizes));
-        setSession(prev => (prev ? { ...prev, prizes: normalizePrizes(data.prizes) } : prev));
-        if (data.prizeStatus) setPrizeStatus(data.prizeStatus);
-        setPrizeModal(null);
-        setPrizeNotice('');
-      } else {
-        setError(data.message || 'تعذر حفظ إعدادات الجوائز');
-      }
-    } catch {
-      setError('تعذر الاتصال بالسيرفر لحفظ إعدادات الجوائز');
-    } finally {
-      setSavingPrizes(false);
-    }
+  const savePrizes = () => {
+    savePrizesLocally(draftPrizes);
+    setStartPrizes(draftPrizes);
+    setPrizeModal(null);
   };
 
   const openPrizeEditor = () => {
@@ -302,370 +370,116 @@ export default function PlayPage() {
     setPrizeModal('edit');
   };
 
-  /**
-   * Work out the winners on this device, using the identical rules the server
-   * runs (src/lib/cardShape + src/lib/prizes) against the cards cached here.
-   * Returns null when this device has never managed to download the cards.
-   */
-  const winnersLocally = (numbers: { number: number; drawOrder: number }[], justDrawn?: number) => {
-    const index = localCardIndex();
-    if (!index) return null;
-
-    const orders = orderMap(numbers.map((n) => ({ number: n.number, draw_order: n.drawOrder })));
-    const standings = computeStandings(index, orders, prizes);
-
-    const fresh: Winner[] = [];
-    if (justDrawn !== undefined) {
-      const before = new Set(numbers.filter((n) => n.number !== justDrawn).map((n) => n.number));
-      for (const cardIdx of index.byNumber.get(justDrawn) || []) {
-        const card = index.cards[cardIdx];
-        for (const key of winsCompletedBy(card, justDrawn, before)) {
-          if (!prizes[key].enabled) continue;
-          const standing = standings[key];
-          const place = standing.winners.findIndex(
-            (w) => w.setNo === card.setNo && w.cardNo === card.cardNo
-          );
-          if (place === -1) continue; // the prize was already full
-          fresh.push({
-            setNo: card.setNo,
-            cardNo: card.cardNo,
-            winType: WIN_LABELS[key],
-            key,
-            place: place + 1,
-            count: standing.count,
-          });
-        }
-      }
-    }
-
-    return { standings, fresh, status: toStatus(standings) };
+  const handleToggleStatus = () => {
+    if (!game) return;
+    setStatus(game.status === 'active' ? 'paused' : 'active');
   };
 
-  /**
-   * A scanned ball goes through exactly the same path as a tapped one, so it
-   * inherits the optimistic update, the prize check and the undo.
-   */
-  const scan = useBallScanner({
-    enabled: scanOn && session?.status === 'active',
-    onScan: (ball) => submitNumber(ball),
-  });
-
-  const processDrawResult = (data: any) => {
-    setSession(prev => {
-      if (!prev) return prev;
-      const current = prev.numbers ?? [];
-      if (current.some(n => n.number === data.number)) return prev; // already shown optimistically
-      return { ...prev, numbers: [...current, { number: data.number, drawOrder: data.order }] };
-    });
-
-    if (data.prizeStatus) setPrizeStatus(data.prizeStatus);
-
-    // If new winners are detected, trigger alert popup
-    if (data.newWinners && data.newWinners.length > 0) {
-      setActiveNewWinners(data.newWinners);
-    }
-  };
-
-  /**
-   * Add a specific number.
-   * The number appears on screen immediately and the request runs in the
-   * background, so the caller can keep entering numbers without waiting.
-   * If the server rejects it, the number is taken back off and the reason shown.
-   */
-  const submitNumber = (num: number) => {
-    if (!session || session.status !== 'active') return;
-    if ((session.numbers ?? []).some(n => n.number === num)) {
-      setError('هذا الرقم مسحوب مسبقاً');
-      return;
-    }
-
-    setError('');
-    setSession(prev => {
-      if (!prev) return prev;
-      const numbers = [...(prev.numbers ?? []), { number: num, drawOrder: (prev.numbers ?? []).length + 1 }];
-      saveBoard({
-        sessionId: String(prev.id),
-        name: prev.name,
-        status: prev.status,
-        numbers,
-        savedAt: Date.now(),
-      });
-      return { ...prev, numbers };
-    });
-    setPendingCount(c => c + 1);
-
-    fetch('/api/sessions/current/draw', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ number: num }),
-    })
-      .then(res => res.json().then(data => ({ ok: res.ok, data })))
-      .then(({ ok, data }) => {
-        if (ok && data.success) {
-          if (data.prizeStatus) setPrizeStatus(data.prizeStatus);
-          if (data.newWinners && data.newWinners.length > 0) setActiveNewWinners(data.newWinners);
-        } else {
-          // roll the number back out
-          setSession(prev => (prev ? { ...prev, numbers: (prev.numbers ?? []).filter(n => n.number !== num) } : prev));
-          setError(data.message || 'حدث خطأ أثناء إضافة الرقم');
-          // the screen and the database disagreed — take the database's word for it
-          fetchCurrentSession(true);
-        }
-      })
-      .catch(() => {
-        // The number stays on the board. It is this device's record of a ball
-        // that really came out of the drum, and it goes out as soon as there is
-        // a connection again — losing it would be the worst possible outcome.
-        goneOffline();
-        if (session) queueOp('draw', num, String(session.id));
-        setWaiting(pendingOps().length);
-
-        // The server cannot say who won, so this device says it instead.
-        setSession((prev) => {
-          if (prev) {
-            const local = winnersLocally(prev.numbers ?? [], num);
-            if (local) {
-              setPrizeStatus(local.status);
-              if (local.fresh.length > 0) setActiveNewWinners(local.fresh);
-            }
-          }
-          return prev;
-        });
-      })
-      .finally(() => setPendingCount(c => c - 1));
-  };
-
-  /**
-   * Undo the last drawn number — for a mistyped call.
-   * The number itself is sent, not just "the last one", so the row that comes off
-   * is exactly the one shown on the button. Afterwards the session is re-read so
-   * the screen can never drift from the database (which is what made a cancelled
-   * number look free while the server still had it).
-   */
-  const handleUndoLast = async () => {
-    const numbers = session?.numbers ?? [];
-    if (!session || undoing || numbers.length === 0) return;
-
-    const target = numbers[numbers.length - 1].number;
-    setUndoing(true);
-    setError('');
-    try {
-      const res = await fetch('/api/sessions/current/draw', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ number: target }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setActiveNewWinners([]);
-        setAllWinners(null);
-      } else {
-        setError(data.message || 'تعذر إلغاء الرقم');
-      }
-      await fetchCurrentSession(true); // the database has the last word
-    } catch {
-      // No connection: take it off this device's board and queue the removal.
-      goneOffline();
-      setSession(prev => {
-        if (!prev) return prev;
-        const numbers = (prev.numbers ?? []).filter(n => n.number !== target);
-        saveBoard({
-          sessionId: String(prev.id),
-          name: prev.name,
-          status: prev.status,
-          numbers,
-          savedAt: Date.now(),
-        });
-        return { ...prev, numbers };
-      });
-      if (session) queueUndo(target, String(session.id));
-      setWaiting(pendingOps().length);
-      setActiveNewWinners([]);
-      setAllWinners(null);
-    } finally {
-      setUndoing(false);
-    }
-  };
-
-  const handleDrawRandomNumber = async () => {
-    if (!session || drawing || session.status !== 'active') return;
-    setDrawing(true);
-    setError('');
-
-    try {
-      const res = await fetch('/api/sessions/current/draw', {
-        method: 'POST',
-      });
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        processDrawResult(data);
-      } else {
-        setError(data.message || 'حدث خطأ أثناء سحب الرقم');
-      }
-    } catch (err) {
-      setError('فشل سحب رقم جديد، يرجى المحاولة لاحقاً');
-    } finally {
-      setDrawing(false);
-    }
-  };
-
-  const handleAddManualNumber = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!session || session.status !== 'active') return;
-
-    const num = parseInt(manualNumber, 10);
-    if (isNaN(num) || num < 1 || num > 90) {
-      setError('يرجى إدخال رقم صحيح بين 1 و 90');
-      return;
-    }
-
-    setManualNumber(''); // clear straight away so the next number can be typed
-    submitNumber(num);
-  };
-
-  const handleNumberClick = (num: number) => {
-    if (!session) return;
-    if (session.status !== 'active') {
-      alert('يرجى استئناف اللعب أولاً لسحب الأرقام');
-      return;
-    }
-    submitNumber(num);
-  };
-
-  const handleToggleStatus = async () => {
-    if (!session) return;
-    const targetStatus = session.status === 'active' ? 'paused' : 'active';
-    try {
-      const res = await fetch('/api/sessions/current/status', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: targetStatus })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSession(prev => {
-          if (!prev) return null;
-          return { ...prev, status: targetStatus };
-        });
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleResetSession = async () => {
-    if (!session) return;
+  const handleResetSession = () => {
+    if (!game) return;
     const confirmed = window.confirm(
       'تحذير هام: هل أنت متأكد من مسح جميع الأرقام المسحوبة الحالية وإعادة ضبط الجلسة للبدء من جديد؟'
     );
     if (!confirmed) return;
-
-    try {
-      const res = await fetch('/api/sessions/current/reset', {
-        method: 'POST'
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSession(prev => {
-          if (!prev) return null;
-          return { ...prev, numbers: [], status: 'active' };
-        });
-        setAllWinners(null);
-        setActiveNewWinners([]);
-        setPrizeStatus(null);
-        setError('');
-      }
-    } catch (err) {
-      console.error(err);
-    }
+    resetNumbers();
+    setAllWinners(null);
+    setActiveNewWinners([]);
+    setError('');
   };
 
+  /**
+   * End the game, then — and only then — send it.
+   *
+   * The game is put in the upload queue before the screen lets go of it, so the
+   * caller can start the next game immediately whether or not the upload works.
+   */
   const handleFinishSession = async () => {
-    if (!session) return;
+    if (!game) return;
     const confirmed = window.confirm('هل تريد إنهاء هذه الجلسة وإغلاقها نهائياً؟');
     if (!confirmed) return;
 
-    try {
-      const res = await fetch('/api/sessions/current/status', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'finished' })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSession(null);
-        setAllWinners(null);
-        setActiveNewWinners([]);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleCheckAllWinners = async () => {
-    if (!session) return;
-    setLoadingAllWinners(true);
+    archiveCurrentGame();
     setAllWinners(null);
-    try {
-      const res = await fetch('/api/sessions/current/winners');
-      const data = await res.json();
-      if (data.success) {
-        setAllWinners(data.winners);
-        if (data.prizes) setPrizeStatus(data.prizes);
-      } else {
-        alert(data.message || 'فشل فحص الفائزين');
-      }
-    } catch {
-      // No server. Run the same check here, off the cards on this device.
-      goneOffline();
-      const local = winnersLocally(session.numbers ?? []);
-      if (!local) {
-        alert('ماكو نت، وما عندي نسخة السيتات بهذا الجهاز. افتح البرنامج مرة وهو متصل.');
-        return;
-      }
+    setActiveNewWinners([]);
+    refreshQueue();
 
-      const paidBy = new Map<string, Record<string, boolean>>();
-      for (const key of PRIZE_ORDER) {
-        for (const w of local.standings[key].winners) {
-          const id = `${w.setNo}:${w.cardNo}`;
-          const row = paidBy.get(id) ?? {};
-          row[key] = true;
-          paidBy.set(id, row);
-        }
-      }
-
-      const rows: Winner[] = [...paidBy.entries()].map(([id, awarded]) => {
-        const [setNo, cardNo] = id.split(':').map(Number);
-        return {
-          setNo,
-          cardNo,
-          awarded,
-          paid: true,
-          row1: Boolean(awarded.row1),
-          row2: Boolean(awarded.row2),
-          row3: Boolean(awarded.row3),
-          corners: Boolean(awarded.corners),
-          fullCard: Boolean(awarded.fullCard),
-        };
-      });
-
-      setAllWinners(rows);
-      setPrizeStatus(local.status);
-    } finally {
-      setLoadingAllWinners(false);
+    if (!navigator.onLine) {
+      setSyncNote('الجلسة محفوظة بالجهاز — تنرفع لحالها أول ما يرجع النت.');
+      return;
     }
+
+    setSyncing(true);
+    const { sent, left, error: failed } = await flushPendingGames();
+    setSyncing(false);
+    refreshQueue();
+    setSyncNote(
+      left === 0
+        ? `تمت مزامنة ${sent === 1 ? 'الجلسة' : `${sent} جلسات`} مع السيرفر.`
+        : failed || 'باقي جلسات ما انرفعت — راح تنعاد المحاولة.'
+    );
   };
 
-  // Helper values
-  const sessionNumbers = session?.numbers ?? [];
-  const drawnNumbers = sessionNumbers.map(n => n.number);
-  const latestDraw = sessionNumbers.length > 0 ? sessionNumbers[sessionNumbers.length - 1].number : null;
+  /** The manual escape hatch: push the running game without ending it. */
+  const handleSyncNow = async () => {
+    setSyncing(true);
+    setSyncNote('');
+    const flush = await flushPendingGames();
+    let note = flush.sent > 0 ? `انرفعت ${flush.sent} جلسة. ` : '';
 
-  /**
-   * The prize row shown while playing. Falls back to the rules alone (nothing
-   * won yet) until the server has sent counters back.
-   */
+    if (game) {
+      const result = await syncRunningGame();
+      note += result.message;
+    } else if (!note) {
+      note = flush.left === 0 ? 'ماكو شي ينتظر الرفع.' : flush.error || 'تعذر الرفع.';
+    }
+
+    setSyncing(false);
+    refreshQueue();
+    setSyncNote(note);
+  };
+
+  const handleCheckAllWinners = () => {
+    if (!game) return;
+    const index = localCardIndex();
+    if (!index) {
+      alert('ما عندي نسخة السيتات بهذا الجهاز. افتح البرنامج مرة وحدة وهو متصل بالنت.');
+      return;
+    }
+
+    const { standings } = readBoard(index, game.numbers, game.prizes);
+
+    const paidBy = new Map<string, Record<string, boolean>>();
+    for (const key of PRIZE_ORDER) {
+      for (const w of standings[key].winners) {
+        const id = `${w.setNo}:${w.cardNo}`;
+        const row = paidBy.get(id) ?? {};
+        row[key] = true;
+        paidBy.set(id, row);
+      }
+    }
+
+    const rows: Winner[] = [...paidBy.entries()].map(([id, awarded]) => {
+      const [setNo, cardNo] = id.split(':').map(Number);
+      return {
+        setNo,
+        cardNo,
+        awarded,
+        paid: true,
+        row1: Boolean(awarded.row1),
+        row2: Boolean(awarded.row2),
+        row3: Boolean(awarded.row3),
+        corners: Boolean(awarded.corners),
+        fullCard: Boolean(awarded.fullCard),
+      };
+    });
+
+    setAllWinners(rows);
+  };
+
+  /* ------------------------------------------------------------------ */
+
+  const latestDraw = numbers.length > 0 ? numbers[numbers.length - 1].number : null;
+
   const prizeBoard: PrizeStatus[] = (
     prizeStatus ??
     PRIZE_ORDER.map((key) => ({
@@ -685,13 +499,13 @@ export default function PlayPage() {
     <ProtectedRoute allowedRoles={['super_admin', 'club']}>
       <Navbar />
       <div className="w-full px-4 py-5 flex flex-col gap-5 select-none pb-24">
-        
-        {loading ? (
+
+        {booting ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400 font-bold">
             <Loader2 className="animate-spin text-emerald-500" size={28} />
             <span className="text-xs" style={{ fontFamily: 'Cairo, sans-serif' }}>جاري تحميل بيانات اللعبة...</span>
           </div>
-        ) : !session ? (
+        ) : !game ? (
           /* NO ACTIVE SESSION */
           <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6 text-center shadow-xl animate-[popIn_0.3s_ease-out] mt-6">
             <div className="text-center mb-6">
@@ -705,6 +519,23 @@ export default function PlayPage() {
                 بعد الضغط راح تطلعلك إعدادات الجوائز — عدّلها أو دوس موافق.
               </p>
             </div>
+
+            {(queued.games > 0 || syncNote) && (
+              <div className="mb-5 bg-sky-500/10 border border-sky-500/25 text-sky-400 p-3 rounded-xl text-[11px] font-bold leading-relaxed" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                {queued.games > 0
+                  ? `كو ${queued.games} ${queued.games === 1 ? 'جلسة' : 'جلسات'} (${queued.numbers} رقم) محفوظة بالجهاز وتنتظر الرفع للسيرفر.`
+                  : syncNote}
+                {queued.games > 0 && (
+                  <button
+                    onClick={handleSyncNow}
+                    disabled={syncing}
+                    className="block mx-auto mt-2 py-1.5 px-4 rounded-lg border border-sky-500/40 hover:bg-sky-500/10 disabled:opacity-50 cursor-pointer"
+                  >
+                    {syncing ? 'جاري الرفع...' : 'ارفعها هسه'}
+                  </button>
+                )}
+              </div>
+            )}
 
             {error && (
               <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-xl text-xs mb-5 font-bold">
@@ -724,25 +555,23 @@ export default function PlayPage() {
                   onChange={(e) => setNewSessionName(e.target.value)}
                   placeholder="مثال: سحب ديوان الجمعية"
                   className="w-full px-4 py-3 rounded-xl border border-slate-800 bg-slate-950 text-slate-100 outline-none focus:border-emerald-500 transition-colors text-sm"
-                  disabled={creating}
                   style={{ fontFamily: 'Cairo, sans-serif' }}
                 />
               </div>
 
-              <button 
-                type="submit" 
-                className="w-full bg-emerald-500 hover:bg-emerald-600 text-ink-fixed font-black py-3 px-6 rounded-xl text-sm transition-all active:scale-[0.98] flex justify-center items-center gap-2 shadow-lg shadow-emerald-500/10 cursor-pointer" 
-                disabled={creating}
+              <button
+                type="submit"
+                className="w-full bg-emerald-500 hover:bg-emerald-600 text-ink-fixed font-black py-3 px-6 rounded-xl text-sm transition-all active:scale-[0.98] flex justify-center items-center gap-2 shadow-lg shadow-emerald-500/10 cursor-pointer"
                 style={{ fontFamily: 'Cairo, sans-serif' }}
               >
-                {creating ? 'جاري تهيئة الجلسة...' : 'ابدأ جلسة السحب الآن 🎲'}
+                ابدأ جلسة السحب الآن 🎲
               </button>
             </form>
           </div>
         ) : (
           /* PLAY SESSION RUNNING */
           <div className="flex flex-col gap-4">
-            
+
             {/* A slim bar: the game keeps the screen, the rest lives behind it */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl px-3 py-2.5 flex items-center justify-between gap-3">
               <button
@@ -773,17 +602,17 @@ export default function PlayPage() {
                   className="text-[11px] font-bold text-slate-300 truncate hidden sm:block"
                   style={{ fontFamily: 'Cairo, sans-serif' }}
                 >
-                  {session.name}
+                  {game.name}
                 </h2>
                 <span
                   className={`px-2 py-0.5 rounded-full font-bold text-[9px] flex-shrink-0 ${
-                    session.status === 'active'
+                    game.status === 'active'
                       ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                       : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                   }`}
                   style={{ fontFamily: 'Cairo, sans-serif' }}
                 >
-                  {session.status === 'active' ? 'نشط' : 'متوقف'}
+                  {game.status === 'active' ? 'نشط' : 'متوقف'}
                 </span>
               </div>
             </div>
@@ -800,11 +629,13 @@ export default function PlayPage() {
               </div>
             )}
 
-            {(!online || waiting > 0 || fromCache) && (
+            {/* The connection is worth a line only because it explains the
+                winner check — the game itself does not care either way. */}
+            {(!online || !cardsReady) && (
               <div
                 className={`rounded-xl border p-3 flex items-start gap-2.5 text-[11px] font-bold leading-relaxed ${
-                  online
-                    ? 'bg-sky-500/10 border-sky-500/25 text-sky-400'
+                  cardsReady
+                    ? 'bg-slate-900 border-slate-800 text-slate-400'
                     : 'bg-amber-500/10 border-amber-500/25 text-amber-400'
                 }`}
                 style={{ fontFamily: 'Cairo, sans-serif' }}
@@ -815,19 +646,9 @@ export default function PlayPage() {
                   <WifiOff size={15} className="flex-shrink-0 mt-0.5" />
                 )}
                 <span className="flex-1">
-                  {online
-                    ? `رجع النت — جاري إرسال ${waiting} ${waiting === 1 ? 'رقم' : 'أرقام'}.`
-                    : 'ماكو نت — الأرقام تنحفظ بالجهاز وتنرسل لحالها أول ما يرجع الاتصال.'}
-                  {!online && waiting > 0 && (
-                    <strong className="mx-1">({waiting} بالانتظار)</strong>
-                  )}
-                  {!online && (
-                    <span className="block text-[10px] opacity-80 mt-0.5">
-                      {cardsReady
-                        ? 'فحص الفائزين شغّال — السيتات محفوظة بهذا الجهاز.'
-                        : 'فحص الفائزين مو شغّال: ما وصلت نسخة السيتات لهذا الجهاز بعد.'}
-                    </span>
-                  )}
+                  {cardsReady
+                    ? 'ماكو نت — اللعبة شغالة كاملة بالجهاز، والمزامنة تصير بعد ما تخلص الجلسة.'
+                    : 'ما وصلت نسخة السيتات لهذا الجهاز بعد، فما أكدر أطلّع الفائزين. افتح البرنامج مرة وحدة وهو متصل بالنت.'}
                 </span>
               </div>
             )}
@@ -851,7 +672,7 @@ export default function PlayPage() {
                     ? `انقرأت الطوبة ${scan.ball}`
                     : 'الماسح جاهز — دك الطوبة وهي تنزل لحالها.'}
                 </span>
-                {session.status !== 'active' && (
+                {game.status !== 'active' && (
                   <span className="text-amber-400 text-[10px] flex-shrink-0">الجلسة متوقفة</span>
                 )}
               </div>
@@ -868,14 +689,14 @@ export default function PlayPage() {
                 onChange={(e) => setManualNumber(e.target.value)}
                 placeholder="اكتب الرقم (1 - 90)"
                 className="w-full px-4 py-3 text-base font-black text-center rounded-xl border border-slate-800 bg-slate-950 text-slate-100 outline-none focus:border-emerald-500 transition-colors"
-                disabled={session.status !== 'active'}
+                disabled={game.status !== 'active'}
                 required
                 style={{ fontFamily: 'Cairo, sans-serif' }}
               />
               <button
                 type="submit"
                 className="px-6 py-3 text-sm font-black bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-600 text-ink-fixed rounded-xl transition-all active:scale-95 cursor-pointer flex-shrink-0"
-                disabled={session.status !== 'active'}
+                disabled={game.status !== 'active'}
                 style={{ fontFamily: 'Cairo, sans-serif' }}
               >
                 إضافة
@@ -884,12 +705,9 @@ export default function PlayPage() {
 
             {/* The drum: balls live here, and a drawn one flies out into the sphere */}
             <DrawDrum
-              drawn={sessionNumbers}
+              drawn={numbers}
               latest={latestDraw}
-              active={session.status === 'active'}
-              drawing={drawing}
-              undoing={undoing}
-              pendingCount={pendingCount}
+              active={game.status === 'active'}
               onPick={handleNumberClick}
               onRandom={handleDrawRandomNumber}
               onUndo={handleUndoLast}
@@ -899,12 +717,12 @@ export default function PlayPage() {
         )}
 
         {/* ---------------- SLIDE-OVER: everything that is not the board ---------------- */}
-        {session && (
+        {game && (
         <Drawer
           open={menuOpen}
           onClose={() => setMenuOpen(false)}
           title="إعدادات الجلسة"
-          subtitle={session?.name}
+          subtitle={game.name}
         >
             {/* Live prize board — what is still open and what has gone */}
           {prizeBoard.length > 0 && (
@@ -943,6 +761,44 @@ export default function PlayPage() {
             </div>
           )}
 
+          {/* Where the game stands with the server. Never in the way of play. */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col gap-2.5">
+            <div className="flex items-center gap-2 text-[11px] font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>
+              {online ? (
+                <CloudUpload size={14} className="text-sky-400 flex-shrink-0" />
+              ) : (
+                <CloudOff size={14} className="text-amber-400 flex-shrink-0" />
+              )}
+              <span className="text-slate-300">
+                {game.serverId === null
+                  ? 'هاي الجلسة لسه ما انرفعت — تنرفع من تخلصها.'
+                  : `آخر رفع: ${game.syncedCount} من ${numbers.length} رقم.`}
+              </span>
+            </div>
+
+            {queued.games > 0 && (
+              <p className="text-[10px] text-slate-500" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                وكو {queued.games} {queued.games === 1 ? 'جلسة سابقة' : 'جلسات سابقة'} بانتظار الرفع.
+              </p>
+            )}
+
+            {syncNote && (
+              <p className="text-[10px] text-sky-400 leading-relaxed" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                {syncNote}
+              </p>
+            )}
+
+            <button
+              onClick={handleSyncNow}
+              disabled={syncing || !online}
+              className="flex items-center justify-center gap-1.5 py-2 px-3 text-[11px] font-extrabold border border-sky-500/25 hover:border-sky-500/45 text-sky-400 bg-sky-500/5 disabled:opacity-40 rounded-xl transition-all cursor-pointer"
+              style={{ fontFamily: 'Cairo, sans-serif' }}
+            >
+              <CloudUpload size={13} />
+              {syncing ? 'جاري الرفع...' : online ? 'مزامنة الآن (اختياري)' : 'ماكو نت'}
+            </button>
+          </div>
+
               <div className="grid grid-cols-2 gap-2">
             <Link
               href="/labels"
@@ -975,16 +831,16 @@ export default function PlayPage() {
               <Award size={13} /> فحص الفائزين
             </button>
 
-            <button 
-              onClick={handleToggleStatus} 
+            <button
+              onClick={handleToggleStatus}
               className="flex items-center justify-center gap-1.5 py-2 px-3 text-[11px] font-bold border border-slate-700 hover:bg-slate-800 text-slate-300 rounded-xl transition-all cursor-pointer"
               style={{ fontFamily: 'Cairo, sans-serif' }}
             >
-              {session.status === 'active' ? <Pause size={13} /> : <Play size={13} />}
-              <span>{session.status === 'active' ? 'إيقاف مؤقت' : 'استئناف'}</span>
+              {game.status === 'active' ? <Pause size={13} /> : <Play size={13} />}
+              <span>{game.status === 'active' ? 'إيقاف مؤقت' : 'استئناف'}</span>
             </button>
 
-            <button 
+            <button
               onClick={() => {
                 setMenuOpen(false);
                 handleResetSession();
@@ -995,10 +851,10 @@ export default function PlayPage() {
               <RotateCcw size={13} /> إعادة تصفير الجولة
             </button>
 
-            <button 
+            <button
               onClick={() => {
                 setMenuOpen(false);
-                handleFinishSession();
+                void handleFinishSession();
               }}
               className="py-2 px-3 text-[11px] font-bold bg-red-500/20 border border-red-500/30 hover:bg-red-500 hover:text-white text-red-400 rounded-xl transition-all cursor-pointer"
               style={{ fontFamily: 'Cairo, sans-serif' }}
@@ -1029,8 +885,7 @@ export default function PlayPage() {
 
                 <button
                   onClick={() => setPrizeModal(null)}
-                  disabled={creating || savingPrizes}
-                  className="text-slate-500 hover:text-slate-300 transition-colors cursor-pointer disabled:opacity-40"
+                  className="text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
                   aria-label="إغلاق"
                 >
                   <X size={18} />
@@ -1041,7 +896,6 @@ export default function PlayPage() {
                 <PrizeSettingsPanel
                   value={draftPrizes}
                   onChange={setDraftPrizes}
-                  disabled={creating || savingPrizes}
                   status={prizeModal === 'edit' ? prizeStatus : null}
                 />
               </div>
@@ -1055,8 +909,7 @@ export default function PlayPage() {
               <div className="p-4 pt-2 border-t border-slate-800 flex gap-2">
                 <button
                   onClick={() => setPrizeModal(null)}
-                  disabled={creating || savingPrizes}
-                  className="px-4 py-3 text-xs font-bold border border-slate-700 hover:bg-slate-800 text-slate-300 rounded-xl transition-all cursor-pointer disabled:opacity-40"
+                  className="px-4 py-3 text-xs font-bold border border-slate-700 hover:bg-slate-800 text-slate-300 rounded-xl transition-all cursor-pointer"
                   style={{ fontFamily: 'Cairo, sans-serif' }}
                 >
                   رجوع
@@ -1064,18 +917,11 @@ export default function PlayPage() {
 
                 <button
                   onClick={prizeModal === 'start' ? confirmStart : savePrizes}
-                  disabled={creating || savingPrizes}
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-600 text-ink-fixed font-black py-3 px-6 rounded-xl text-sm transition-all active:scale-[0.98] shadow-lg shadow-emerald-500/10 cursor-pointer"
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-ink-fixed font-black py-3 px-6 rounded-xl text-sm transition-all active:scale-[0.98] shadow-lg shadow-emerald-500/10 cursor-pointer"
                   style={{ fontFamily: 'Cairo, sans-serif' }}
                 >
                   <Check size={16} />
-                  {prizeModal === 'start'
-                    ? creating
-                      ? 'جاري بدء الجلسة...'
-                      : 'موافق وابدأ الجلسة'
-                    : savingPrizes
-                    ? 'جاري الحفظ...'
-                    : 'حفظ التعديلات'}
+                  {prizeModal === 'start' ? 'موافق وابدأ الجلسة' : 'حفظ التعديلات'}
                 </button>
               </div>
 
@@ -1087,7 +933,7 @@ export default function PlayPage() {
         {activeNewWinners.length > 0 && (
           <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-[fadeIn_0.2s_ease-out]">
             <div className="bg-slate-900 border border-emerald-500/50 rounded-3xl shadow-2xl max-w-sm w-full p-5 text-center relative animate-[popIn_0.3s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards]">
-              
+
               <button
                 onClick={() => setActiveNewWinners([])}
                 className="absolute top-4 left-4 text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
@@ -1108,8 +954,8 @@ export default function PlayPage() {
 
               <div className="flex flex-col gap-2 max-h-40 overflow-y-auto mb-5 text-right">
                 {activeNewWinners.map((winner, idx) => (
-                  <div 
-                    key={idx} 
+                  <div
+                    key={idx}
                     className="p-2.5 bg-slate-950 border border-slate-800/80 rounded-xl flex justify-between items-center"
                   >
                     <span className="font-bold text-slate-200 text-xs flex flex-col items-start gap-0.5">
@@ -1133,8 +979,8 @@ export default function PlayPage() {
                 ))}
               </div>
 
-              <button 
-                onClick={() => setActiveNewWinners([])} 
+              <button
+                onClick={() => setActiveNewWinners([])}
                 className="w-full bg-emerald-500 hover:bg-emerald-600 text-ink-fixed font-black py-2.5 px-6 rounded-xl text-xs transition-all cursor-pointer"
                 style={{ fontFamily: 'Cairo, sans-serif' }}
               >
@@ -1148,7 +994,7 @@ export default function PlayPage() {
         {allWinners !== null && (
           <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-[fadeIn_0.2s_ease-out]">
             <div className="bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl max-w-sm w-full p-5 max-h-[80vh] overflow-y-auto relative">
-              
+
               <button
                 onClick={() => setAllWinners(null)}
                 className="absolute top-4 left-4 text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
@@ -1190,8 +1036,8 @@ export default function PlayPage() {
               ) : (
                 <div className="flex flex-col gap-2">
                   {allWinners.map((winner, idx) => (
-                    <div 
-                      key={idx} 
+                    <div
+                      key={idx}
                       className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex flex-col gap-2 text-right text-xs"
                     >
                       <div className="flex justify-between items-center border-b border-slate-800 pb-1.5">
@@ -1215,7 +1061,7 @@ export default function PlayPage() {
                           )}
                         </div>
                       </div>
-                      
+
                       {/* Green = took the prize. Amber = line complete but the
                           prize was already full or switched off. */}
                       <div className="grid grid-cols-4 gap-1 text-[10px] font-bold text-center">
@@ -1251,8 +1097,8 @@ export default function PlayPage() {
               )}
 
               <div className="mt-5">
-                <button 
-                  onClick={() => setAllWinners(null)} 
+                <button
+                  onClick={() => setAllWinners(null)}
                   className="w-full bg-emerald-500 hover:bg-emerald-600 text-ink-fixed font-black py-2 rounded-xl text-xs cursor-pointer"
                   style={{ fontFamily: 'Cairo, sans-serif' }}
                 >
