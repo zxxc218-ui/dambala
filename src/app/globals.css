@@ -550,6 +550,21 @@ html, body {
   padding: 4px 5px 5px;
 }
 
+/* one column for a card or half a set, two for a whole printed page */
+.card-paper .cols {
+  display: flex;
+  gap: 7px;
+  direction: ltr;
+}
+
+.card-paper .col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
 .card-paper .sheet-card-nums {
   font-size: 12px;
   padding: 0 2px 2px;
