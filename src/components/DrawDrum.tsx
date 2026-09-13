@@ -73,13 +73,27 @@ export default function DrawDrum({
 
   const [flights, setFlights] = useState<Flight[]>([]);
   const flightId = useRef(0);
+  /**
+   * Timers that clear a landed ball off the screen.
+   *
+   * They are deliberately kept here and not in the launching effect's cleanup.
+   * React runs that cleanup the moment the next number arrives, and cancelling
+   * the timer there is what used to leave the previous ball parked on top of
+   * the big one — so the caller drew 90 and went on looking at 89.
+   */
+  const timers = useRef<number[]>([]);
+
+  useEffect(
+    () => () => {
+      timers.current.forEach((t) => clearTimeout(t));
+      timers.current = [];
+    },
+    []
+  );
 
   const drawnNumbers = drawn.map((d) => d.number);
   const drawnSet = new Set(drawnNumbers);
   const remaining = 90 - drawnSet.size;
-
-  /** A ball is mid-air, so the big ball holds its number back until it lands. */
-  const inFlight = flights.some((f) => f.number === latest);
 
   /**
    * Watch the board rather than the click: a number can arrive from a tap, from
@@ -118,20 +132,21 @@ export default function DrawDrum({
       live: false,
     };
 
-    setFlights((list) => [...list, flight]);
+    // One ball in the air at a time. Numbers can now arrive as fast as they can
+    // be typed, and a queue of balls all flying at the same big ball is noise —
+    // the last one called is the one worth watching.
+    setFlights([flight]);
 
-    const raf = requestAnimationFrame(() =>
+    requestAnimationFrame(() =>
       setFlights((list) => list.map((f) => (f.id === flight.id ? { ...f, live: true } : f)))
     );
-    const done = setTimeout(
-      () => setFlights((list) => list.filter((f) => f.id !== flight.id)),
-      FLIGHT_MS + 40
-    );
 
-    return () => {
-      cancelAnimationFrame(raf);
-      clearTimeout(done);
-    };
+    timers.current.push(
+      window.setTimeout(
+        () => setFlights((list) => list.filter((f) => f.id !== flight.id)),
+        FLIGHT_MS + 40
+      )
+    );
   }, [latest, drawnNumbers.length]);
 
   // A ball that flew while the tab was hidden would otherwise hang around.
@@ -256,12 +271,14 @@ export default function DrawDrum({
                 : 'inset 0 3px 10px var(--drum-inset), 0 0 0 3px var(--color-slate-800)',
             }}
           >
-            {latest && !inFlight ? (
+            {/* The number is here the instant it is called. It used to wait for
+                the ball to land, which read as the drum being slow — and the
+                flying ball comes to rest on exactly this spot with the same
+                face, so the two simply merge. */}
+            {latest ? (
               <span className="text-ink-fixed font-mono font-black text-4xl tracking-tighter animate-[popIn_0.25s_cubic-bezier(0.175,0.885,0.32,1.275)]">
                 {latest}
               </span>
-            ) : latest ? (
-              <span className="opacity-0 text-4xl font-black">{latest}</span>
             ) : (
               <span className="text-slate-700 text-4xl font-black">-</span>
             )}
