@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Navbar from '@/components/Navbar';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { ChevronLeft, ChevronRight, Loader2, Printer, ScrollText, AlertTriangle } from 'lucide-react';
+import { localSet } from '@/lib/localSets';
 
 interface CardRow {
   rowNo: number;
@@ -99,8 +100,15 @@ export default function SheetPage() {
       }
     } catch {
       if (myRequest !== requestId.current) return;
-      setSetDetails(null);
-      setError('تعذر الاتصال بالسيرفر لجلب السيت');
+      // No server: the same set, rebuilt from the copy kept on this device.
+      const offline = localSet(no);
+      if (offline) {
+        setSetDetails(offline as unknown as SetDetails);
+        setError('');
+      } else {
+        setSetDetails(null);
+        setError('ماكو نت، وما عندي نسخة السيتات بهذا الجهاز. افتح البرنامج مرة وحدة وهو متصل.');
+      }
     } finally {
       if (myRequest === requestId.current) setLoading(false);
     }
