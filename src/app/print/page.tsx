@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
 import { Printer, Layout, RefreshCw, FileText, ArrowRight, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { localSet, localSetList, localSets } from '@/lib/localSets';
 
 interface CardRow {
   rowNo: number;
@@ -52,7 +53,10 @@ export default function PrintPage() {
           setSetsList(data.sets);
         }
       } catch (err) {
-        console.error('Failed to load sets list:', err);
+        // No server: list what this device already holds, so printing still works.
+        const offline = localSetList();
+        if (offline) setSetsList(offline as any);
+        else console.error('Failed to load sets list:', err);
       } finally {
         setLoadingSetsList(false);
       }
@@ -95,7 +99,17 @@ export default function PrintPage() {
         }
       }
     } catch (err) {
-      setError('تعذر الاتصال بالخادم لجلب تفاصيل الطباعة');
+      // No server: print from the copy on this device instead of refusing.
+      if (printMode === 'single') {
+        const parsedSetNo = parseInt(selectedSetNo, 10);
+        const offline = isNaN(parsedSetNo) ? null : localSet(parsedSetNo);
+        if (offline) setAllSetsData([offline as any]);
+        else setError('ماكو نت، وما عندي نسخة السيتات بهذا الجهاز. افتح البرنامج مرة وحدة وهو متصل.');
+      } else {
+        const offline = localSets();
+        if (offline) setAllSetsData(offline as any);
+        else setError('ماكو نت، وما عندي نسخة السيتات بهذا الجهاز. افتح البرنامج مرة وحدة وهو متصل.');
+      }
     } finally {
       setLoadingPrintData(false);
     }
