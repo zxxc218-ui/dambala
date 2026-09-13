@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
 import { Search, Award, CheckCircle2, XCircle, Info, Loader2, AlertCircle } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { getGame } from '@/lib/gameStore';
+import { localSet } from '@/lib/localSets';
 
 interface CardRow {
   rowNo: number;
@@ -44,9 +46,27 @@ export default function CheckWinnerPage() {
     fetchCurrentSession();
   }, []);
 
+  /**
+   * The board this check is made against.
+   *
+   * The game is played on the device now, so the device is where the live board
+   * is — the server's copy is only brought up to date once a game ends. Reading
+   * the server first would show numbers that are minutes old in the middle of a
+   * game, which is exactly the wrong answer to "did this card win".
+   */
+  const readLiveBoard = (): boolean => {
+    const game = getGame();
+    if (!game) return false;
+    setDrawnNumbers(game.numbers.map((n) => n.number));
+    setSessionName(game.name);
+    return true;
+  };
+
   const fetchCurrentSession = async () => {
     setLoadingSession(true);
     try {
+      if (readLiveBoard()) return;
+
       const res = await fetch('/api/sessions/current');
       const data = await res.json();
       if (data.success && data.session) {
@@ -78,32 +98,49 @@ export default function CheckWinnerPage() {
 
     setSearching(true);
 
+    // Take the card off this device when it is here — instant, and right even
+    // with no connection.
+    const showCard = (cards: any[]): boolean => {
+      const found = cards.find((c: any) => c.cardNo === parsedCardNo);
+      if (!found) {
+        setError(`البطاقة رقم ${parsedCardNo} غير موجودة في السيت ${parsedSetNo}`);
+        return true; // answered: the card genuinely is not in this set
+      }
+      setCardData(found);
+      setSearched(true);
+      return true;
+    };
+
     try {
-      // Re-fetch current session in case new numbers were drawn
-      const sessionRes = await fetch('/api/sessions/current');
-      const sessionData = await sessionRes.json();
-      if (sessionData.success && sessionData.session) {
-        setDrawnNumbers(sessionData.session.numbers.map((n: any) => n.number));
-        setSessionName(sessionData.session.name);
+      // Whatever the board is right now — device first, server only if this
+      // device is not the one playing.
+      if (!readLiveBoard()) {
+        const sessionRes = await fetch('/api/sessions/current');
+        const sessionData = await sessionRes.json();
+        if (sessionData.success && sessionData.session) {
+          setDrawnNumbers(sessionData.session.numbers.map((n: any) => n.number));
+          setSessionName(sessionData.session.name);
+        }
       }
 
-      // Fetch set details
+      const offline = localSet(parsedSetNo);
+      if (offline) {
+        showCard(offline.cards);
+        return;
+      }
+
       const res = await fetch(`/api/sets/${parsedSetNo}`);
       const data = await res.json();
 
       if (res.ok && data.success) {
-        const foundCard = data.set.cards.find((c: any) => c.cardNo === parsedCardNo);
-        if (foundCard) {
-          setCardData(foundCard);
-          setSearched(true);
-        } else {
-          setError(`البطاقة رقم ${parsedCardNo} غير موجودة في السيت ${parsedSetNo}`);
-        }
+        showCard(data.set.cards);
       } else {
         setError(data.message || 'فشل جلب تفاصيل السيت');
       }
     } catch (err) {
-      setError('تعذر الاتصال بالخادم، يرجى التحقق من الشبكة');
+      const offline = localSet(parsedSetNo);
+      if (offline) showCard(offline.cards);
+      else setError('ماكو نت، وما عندي نسخة السيتات بهذا الجهاز. افتح البرنامج مرة وحدة وهو متصل.');
     } finally {
       setSearching(false);
     }
