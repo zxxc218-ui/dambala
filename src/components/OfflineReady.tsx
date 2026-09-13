@@ -1,12 +1,16 @@
 'use client';
 
 import { useEffect } from 'react';
+import { ensureLocalCards } from '@/lib/localCards';
 
 /**
- * Installs the service worker that lets the game open without a connection.
+ * Everything the app needs before the connection goes away.
  *
- * Only in production: in development the worker would sit in front of the dev
- * server's own reloading and make changes look like they are not applying.
+ * Two things, both quiet and both on every page: the service worker that lets
+ * the pages open with no network, and the copy of the cards that lets them show
+ * anything once they do. Both are one-time — after the first visit they cost a
+ * revalidation, and they are what turn this from a website into something that
+ * still works in a hall with no signal.
  */
 export default function OfflineReady() {
   useEffect(() => {
@@ -25,6 +29,23 @@ export default function OfflineReady() {
       window.addEventListener('load', register);
       return () => window.removeEventListener('load', register);
     }
+  }, []);
+
+  /**
+   * The cards, fetched once and kept. Failing is fine — it only means the
+   * device is not ready for an outage yet, and the next online visit retries.
+   */
+  useEffect(() => {
+    const idle = () => {
+      void ensureLocalCards();
+    };
+    const w = window as any;
+    if (typeof w.requestIdleCallback === 'function') {
+      const id = w.requestIdleCallback(idle, { timeout: 4000 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const t = setTimeout(idle, 1500);
+    return () => clearTimeout(t);
   }, []);
 
   return null;

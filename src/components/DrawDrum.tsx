@@ -26,9 +26,6 @@ interface Props {
   latest: number | null;
   /** false while the session is paused — the drum locks */
   active: boolean;
-  drawing: boolean;
-  undoing: boolean;
-  pendingCount: number;
   onPick: (n: number) => void;
   onRandom: () => void;
   onUndo: () => void;
@@ -65,9 +62,6 @@ export default function DrawDrum({
   drawn,
   latest,
   active,
-  drawing,
-  undoing,
-  pendingCount,
   onPick,
   onRandom,
   onUndo,
@@ -333,33 +327,24 @@ export default function DrawDrum({
         <div className="flex gap-2 w-full max-w-[340px] mt-3">
           <button
             onClick={onRandom}
-            disabled={drawing || !active || remaining === 0}
+            disabled={!active || remaining === 0}
             className="flex-1 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-600 text-ink-fixed font-black py-3 px-4 rounded-xl text-sm transition-all active:scale-[0.98] cursor-pointer"
             style={{ fontFamily: 'Cairo, sans-serif' }}
           >
-            {drawing ? 'جاري السحب...' : 'اسحب كرة'}
+            اسحب كرة
           </button>
 
           <button
             onClick={onUndo}
-            disabled={undoing || drawnSet.size === 0}
+            disabled={drawnSet.size === 0}
             aria-label="رجّع آخر كرة"
             className="flex items-center justify-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-amber-400 disabled:opacity-35 disabled:cursor-not-allowed font-bold py-3 px-4 rounded-xl text-[11px] transition-all active:scale-[0.98] cursor-pointer flex-shrink-0"
             style={{ fontFamily: 'Cairo, sans-serif' }}
           >
             <Undo2 size={14} />
-            {undoing ? '...' : latest ? `رجّع (${latest})` : 'رجّع'}
+            {latest ? `رجّع (${latest})` : 'رجّع'}
           </button>
         </div>
-
-        {pendingCount > 0 && (
-          <span
-            className="mt-2 text-[10px] text-slate-500 font-bold"
-            style={{ fontFamily: 'Cairo, sans-serif' }}
-          >
-            جاري الحفظ… ({pendingCount})
-          </span>
-        )}
       </div>
       {/* ============================== balls in mid-air ============================== */}
       {flights.map((f) => (
