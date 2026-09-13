@@ -27,8 +27,19 @@ import CardGrid from '@/components/CardGrid';
 import useBallScanner from '@/components/useBallScanner';
 import useOnline from '@/components/useOnline';
 import useGame from '@/components/useGame';
-import { computeStandings, orderMap, toStatus } from '@/lib/prizes';
-import { WIN_LABELS, winsCompletedBy, CardIndex, IndexedCard } from '@/lib/cardShape';
+import {
+  HALF_LABELS,
+  PRIZE_LABELS,
+  PRIZE_SCOPE,
+  PrizeWinner,
+  computeStandings,
+  freshWins,
+  orderMap,
+  toStatus,
+  winPicture,
+  winnerName,
+} from '@/lib/prizes';
+import { CardIndex, HalfKey } from '@/lib/cardShape';
 import { ensureLocalCards, localCardIndex } from '@/lib/localCards';
 import {
   DrawnNumber,
@@ -51,14 +62,14 @@ import {
 } from '@/lib/gameSync';
 import Drawer from '@/components/Drawer';
 import Link from 'next/link';
-import PrizeSettingsPanel, {
+import PrizeSettingsPanel from '@/components/PrizeSettings';
+import {
   DEFAULT_PRIZES,
-  PRIZE_LABELS,
   PRIZE_ORDER,
   PrizeKey,
   PrizeSettings,
   normalizePrizes,
-} from '@/components/PrizeSettings';
+} from '@/lib/prizes';
 
 /**
  * The play screen.
@@ -84,19 +95,17 @@ interface PrizeStatus {
 
 interface Winner {
   setNo: number;
-  cardNo: number;
-  winType?: string;
-  key?: PrizeKey;
-  /** which place this card took in its prize (1 = first) */
-  place?: number;
-  count?: number;
-  awarded?: Record<string, boolean>;
-  paid?: boolean;
-  row1?: boolean;
-  row2?: boolean;
-  row3?: boolean;
-  corners?: boolean;
-  fullCard?: boolean;
+  /** set only when a single card won */
+  cardNo?: number;
+  /** set only when one column of a set won */
+  half?: HalfKey;
+  key: PrizeKey;
+  winType: string;
+  /** which place it took in its prize (1 = first) */
+  place: number;
+  count: number;
+  /** the draw order of the ball that completed it */
+  at: number;
 }
 
 /** Winners and prize standings for a board, worked out here on the device. */
@@ -109,60 +118,127 @@ function readBoard(
   const orders = orderMap(numbers.map((n) => ({ number: n.number, draw_order: n.drawOrder })));
   const standings = computeStandings(index, orders, prizes);
 
-  const fresh: Winner[] = [];
-  if (justDrawn !== undefined) {
-    const before = new Set(numbers.filter((n) => n.number !== justDrawn).map((n) => n.number));
-    for (const cardIdx of index.byNumber.get(justDrawn) || []) {
-      const card = index.cards[cardIdx];
-      for (const key of winsCompletedBy(card, justDrawn, before)) {
-        if (!prizes[key].enabled) continue;
-        const standing = standings[key];
-        const place = standing.winners.findIndex(
-          (w) => w.setNo === card.setNo && w.cardNo === card.cardNo
-        );
-        if (place === -1) continue; // the prize was already full
-        fresh.push({
-          setNo: card.setNo,
-          cardNo: card.cardNo,
-          winType: WIN_LABELS[key],
-          key,
-          place: place + 1,
-          count: standing.count,
-        });
-      }
-    }
-  }
+  // What the ball that just came out won: the winners whose prize completed on
+  // its draw order. Reading it out of the standings rather than working it out
+  // again is what keeps the announcement and the counters agreeing, and it
+  // covers a card, half a set and a whole set without knowing the difference.
+  const fresh: Winner[] = freshWins(standings, justDrawn === undefined ? undefined : orders.get(justDrawn)).map(
+    (w) => ({
+      setNo: w.setNo,
+      cardNo: w.cardNo,
+      half: w.half,
+      key: w.key,
+      winType: w.label,
+      place: w.place,
+      count: w.count,
+      at: w.at,
+    })
+  );
 
   return { standings, fresh, status: toStatus(standings) };
 }
 
-interface WonRow {
-  key: PrizeKey;
-  place: number;
-  count: number;
-  setNo: number;
-  cardNo: number;
-  /** the draw order of the ball that completed it */
-  at: number;
+type WonRow = Winner;
+
+/** The colour a prize carries everywhere it is shown. */
+function prizeTone(key: PrizeKey): string {
+  const scope = PRIZE_SCOPE[key];
+  if (scope === 'set') return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
+  if (scope === 'half') return 'bg-sky-500/10 text-sky-400 border border-sky-500/20';
+  if (key === 'fullCard') return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
+  if (key === 'corners') return 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20';
+  return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
 }
 
 /**
- * The cards that have won, as they win.
+ * One win, shown as the thing that won it.
+ *
+ * A card prize draws the card; half a set draws its column of three; the set
+ * prize draws the whole printed page. Same picture at three sizes, with the
+ * numbers that made up the win ringed — which is the only way to settle a claim
+ * without going and finding the paper.
+ */
+function WinnerRow({
+  win,
+  index,
+  drawn,
+  highlighted,
+}: {
+  win: Winner;
+  index: CardIndex | null;
+  drawn: Set<number>;
+  highlighted?: boolean;
+}) {
+  const picture = index ? winPicture(index, win) : null;
+  const wide = (picture?.columns.length ?? 1) > 1;
+
+  return (
+    <div
+      className={`bg-slate-950 border rounded-xl p-2 flex gap-2.5 ${
+        wide ? 'flex-col sm:flex-row sm:items-center' : 'items-center'
+      } ${highlighted ? 'border-emerald-500/40' : 'border-slate-800'}`}
+    >
+      {picture && (
+        <div className={`min-w-0 ${wide ? 'w-full sm:flex-1' : 'flex-1 max-w-[230px]'}`}>
+          <CardGrid
+            columns={picture.columns}
+            drawn={drawn}
+            highlight={picture.highlight}
+            size="sm"
+          />
+        </div>
+      )}
+
+      <div className="flex flex-col items-start gap-0.5 flex-shrink-0">
+        <span
+          className="text-[10px] font-black text-slate-200 leading-snug"
+          style={{ fontFamily: 'Cairo, sans-serif' }}
+        >
+          سيت {String(win.setNo).padStart(3, '0')}
+          <br />
+          {win.cardNo !== undefined
+            ? `بطاقة ${String(win.cardNo).padStart(2, '0')}`
+            : win.half
+            ? HALF_LABELS[win.half]
+            : 'السيت كله'}
+        </span>
+
+        <span
+          className={`px-1.5 py-0.5 rounded font-black text-[9px] ${prizeTone(win.key)}`}
+          style={{ fontFamily: 'Cairo, sans-serif' }}
+        >
+          {PRIZE_LABELS[win.key]}
+        </span>
+
+        {win.count > 1 && (
+          <span
+            className="text-[9px] font-black text-slate-500"
+            style={{ fontFamily: 'Cairo, sans-serif' }}
+          >
+            الفائز {win.place} من {win.count}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * What has won, as it wins.
  *
  * On a wide screen this fills the space beside the drum, which was empty, and
- * on a phone it sits under it. Either way it is the night's record: the newest
- * win on top, each shown as the card itself with the line that took the prize
- * lit, so a claim can be settled by looking rather than by asking.
+ * on a phone it sits under it. Either way it is the night's record, newest on
+ * top — cards, halves and whole sets together, in the order the balls paid them.
  */
 function WinnersBoard({
   rows,
   drawn,
-  cardOf,
+  index,
   ready,
 }: {
   rows: WonRow[];
   drawn: Set<number>;
-  cardOf: (setNo: number, cardNo: number) => IndexedCard | null;
+  index: CardIndex | null;
   ready: boolean;
 }) {
   return (
@@ -189,60 +265,21 @@ function WinnersBoard({
           className="text-[10px] text-slate-600 leading-relaxed py-8 text-center"
           style={{ fontFamily: 'Cairo, sans-serif' }}
         >
-          ما فازت ولا بطاقة لحد هسه.
+          ما فاز ولا شي لحد هسه.
           <br />
-          أول ما تربح وحدة تنزل هنا.
+          أول ما تربح بطاقة أو نصف سيت أو سيت، تنزل هنا.
         </p>
       ) : (
         <div className="flex flex-col gap-2 max-h-[70vh] overflow-y-auto">
-          {rows.map((w, i) => {
-            const card = cardOf(w.setNo, w.cardNo);
-            return (
-              <div
-                key={`${w.key}-${w.setNo}-${w.cardNo}-${i}`}
-                className={`bg-slate-950 border rounded-xl p-2 flex items-center gap-2.5 ${
-                  i === 0 ? 'border-emerald-500/40' : 'border-slate-800'
-                }`}
-              >
-                {card && (
-                  <div className="flex-1 min-w-0 max-w-[220px]">
-                    <CardGrid card={card} drawn={drawn} won={w.key} size="sm" />
-                  </div>
-                )}
-
-                <div className="flex flex-col items-start gap-0.5 flex-shrink-0">
-                  <span
-                    className="text-[10px] font-black text-slate-200 leading-snug"
-                    style={{ fontFamily: 'Cairo, sans-serif' }}
-                  >
-                    سيت {String(w.setNo).padStart(3, '0')}
-                    <br />
-                    بطاقة {String(w.cardNo).padStart(2, '0')}
-                  </span>
-                  <span
-                    className={`px-1.5 py-0.5 rounded font-black text-[9px] ${
-                      w.key === 'fullCard'
-                        ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                        : w.key === 'corners'
-                        ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
-                        : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                    }`}
-                    style={{ fontFamily: 'Cairo, sans-serif' }}
-                  >
-                    {WIN_LABELS[w.key]}
-                  </span>
-                  {w.count > 1 && (
-                    <span
-                      className="text-[9px] font-black text-slate-500"
-                      style={{ fontFamily: 'Cairo, sans-serif' }}
-                    >
-                      الفائز {w.place} من {w.count}
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+          {rows.map((w, i) => (
+            <WinnerRow
+              key={`${w.key}-${w.setNo}-${w.cardNo ?? w.half ?? 'set'}-${i}`}
+              win={w}
+              index={index}
+              drawn={drawn}
+              highlighted={i === 0}
+            />
+          ))}
         </div>
       )}
     </div>
@@ -418,17 +455,20 @@ export default function PlayPage() {
    * see every card that has won and what it won — without stopping the game to
    * go and ask for it.
    */
-  const wonCards = useMemo(() => {
+  const wonCards = useMemo<Winner[]>(() => {
     if (!board) return [];
-    const rows: { key: PrizeKey; place: number; count: number; setNo: number; cardNo: number; at: number }[] = [];
+    const rows: Winner[] = [];
     for (const key of PRIZE_ORDER) {
-      board.standings[key].winners.forEach((w, i) => {
+      const standing = board.standings[key];
+      standing.winners.forEach((w, i) => {
         rows.push({
-          key,
-          place: i + 1,
-          count: board.standings[key].count,
           setNo: w.setNo,
           cardNo: w.cardNo,
+          half: w.half,
+          key,
+          winType: standing.label,
+          place: i + 1,
+          count: standing.count,
           at: w.at,
         });
       });
@@ -665,46 +705,19 @@ export default function PlayPage() {
     }
   };
 
-  /** The card itself, for showing a winner rather than describing one. */
-  const cardOf = (setNo: number, cardNo: number) =>
-    localCardIndex()?.cards.find((c) => c.setNo === setNo && c.cardNo === cardNo) ?? null;
-
+  /**
+   * The full report: the same wins the panel is already showing, opened up.
+   *
+   * It used to be worked out separately, which is how two lists of winners on
+   * one screen start disagreeing with each other.
+   */
   const handleCheckAllWinners = () => {
     if (!game) return;
-    const index = localCardIndex();
-    if (!index) {
+    if (!localCardIndex()) {
       alert('ما عندي نسخة السيتات بهذا الجهاز. افتح البرنامج مرة وحدة وهو متصل بالنت.');
       return;
     }
-
-    const { standings } = readBoard(index, game.numbers, game.prizes);
-
-    const paidBy = new Map<string, Record<string, boolean>>();
-    for (const key of PRIZE_ORDER) {
-      for (const w of standings[key].winners) {
-        const id = `${w.setNo}:${w.cardNo}`;
-        const row = paidBy.get(id) ?? {};
-        row[key] = true;
-        paidBy.set(id, row);
-      }
-    }
-
-    const rows: Winner[] = [...paidBy.entries()].map(([id, awarded]) => {
-      const [setNo, cardNo] = id.split(':').map(Number);
-      return {
-        setNo,
-        cardNo,
-        awarded,
-        paid: true,
-        row1: Boolean(awarded.row1),
-        row2: Boolean(awarded.row2),
-        row3: Boolean(awarded.row3),
-        corners: Boolean(awarded.corners),
-        fullCard: Boolean(awarded.fullCard),
-      };
-    });
-
-    setAllWinners(rows);
+    setAllWinners(wonCards);
   };
 
   /* ------------------------------------------------------------------ */
@@ -1054,7 +1067,7 @@ export default function PlayPage() {
               <WinnersBoard
                 rows={wonCards}
                 drawn={new Set(numbers.map((n) => n.number))}
-                cardOf={cardOf}
+                index={cardsReady ? localCardIndex() : null}
                 ready={cardsReady}
               />
             </div>
@@ -1297,64 +1310,18 @@ export default function PlayPage() {
                 تم اكتمال خطوط اللعب للبطاقات التالية بفعل الرقم الأخير:
               </p>
 
-              {/* The card itself, not a description of it. Whoever is holding
-                  the winning card can match it at a glance, and whoever is
-                  calling can see the line filled in rather than take it on
-                  trust. The picture goes on the left and what it means on the
-                  right, so the eye reads the proof first. */}
+              {/* The thing that won, drawn the way it is printed — a card, a
+                  column of three, or the whole page. Whoever is holding it can
+                  match it at a glance instead of taking the name on trust. */}
               <div className="flex flex-col gap-2.5 max-h-[52vh] overflow-y-auto mb-5 text-right">
-                {activeNewWinners.map((winner, idx) => {
-                  const card = cardOf(winner.setNo, winner.cardNo);
-                  return (
-                    <div
-                      key={idx}
-                      className="p-2.5 bg-slate-950 border border-slate-800/80 rounded-xl flex items-center gap-3"
-                    >
-                      {card && (
-                        <div className="flex-1 min-w-0 max-w-[230px]">
-                          <CardGrid
-                            card={card}
-                            drawn={new Set(numbers.map((n) => n.number))}
-                            won={winner.key ?? null}
-                          />
-                        </div>
-                      )}
-
-                      <div className="flex flex-col items-start gap-1 flex-shrink-0">
-                        <span
-                          className="font-black text-slate-200 text-xs leading-relaxed"
-                          style={{ fontFamily: 'Cairo, sans-serif' }}
-                        >
-                          سيت {formatSetNo(winner.setNo)}
-                          <br />
-                          بطاقة {formatCardNo(winner.cardNo)}
-                        </span>
-
-                        <span
-                          className={`px-2 py-0.5 rounded-lg font-black text-[10px] ${
-                            winner.winType === 'البطاقة كاملة (دمبلة)'
-                              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                              : winner.winType === 'الزوايا'
-                              ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
-                              : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                          }`}
-                          style={{ fontFamily: 'Cairo, sans-serif' }}
-                        >
-                          {winner.winType}
-                        </span>
-
-                        {winner.place !== undefined && winner.count ? (
-                          <span
-                            className="text-[9px] font-black text-slate-500"
-                            style={{ fontFamily: 'Cairo, sans-serif' }}
-                          >
-                            الفائز {winner.place} من {winner.count}
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                  );
-                })}
+                {activeNewWinners.map((winner, idx) => (
+                  <WinnerRow
+                    key={idx}
+                    win={winner}
+                    index={localCardIndex()}
+                    drawn={new Set(numbers.map((n) => n.number))}
+                  />
+                ))}
               </div>
 
               <button
@@ -1384,7 +1351,7 @@ export default function PlayPage() {
                 <Award className="text-emerald-400" size={16} /> تقرير الفائزين الإجمالي بالجلسة
               </h3>
               <p className="text-slate-400 text-[10px] mb-4" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                قائمة بجميع البطاقات الفائزة مقارنة بكامل الأرقام المسحوبة بالجلسة.
+                كل شي فاز بهاي الجلسة: بطاقات، أنصاف سيتات وسيتات كاملة.
               </p>
 
               {prizeBoard.length > 0 && (
@@ -1409,67 +1376,17 @@ export default function PlayPage() {
 
               {allWinners.length === 0 ? (
                 <div className="text-center py-6 text-slate-500 text-xs">
-                  <p style={{ fontFamily: 'Cairo, sans-serif' }}>لا يوجد أي بطاقة فائزة في الجلسة حتى الآن.</p>
+                  <p style={{ fontFamily: 'Cairo, sans-serif' }}>ما فاز ولا شي بالجلسة حتى الآن.</p>
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
                   {allWinners.map((winner, idx) => (
-                    <div
-                      key={idx}
-                      className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex flex-col gap-2 text-right text-xs"
-                    >
-                      <div className="flex justify-between items-center border-b border-slate-800 pb-1.5">
-                        <span className="font-extrabold text-slate-200">
-                          سيت {formatSetNo(winner.setNo)} | كرت {formatCardNo(winner.cardNo)}
-                        </span>
-                        <div className="flex gap-1">
-                          {winner.awarded?.corners && (
-                            <span className="px-2 py-0.5 bg-sky-500/10 border border-sky-500/20 text-sky-400 rounded-lg text-[9px] font-black" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                              ◤ الزوايا
-                            </span>
-                          )}
-                          {winner.fullCard && (
-                            <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black border ${
-                              winner.awarded?.fullCard
-                                ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
-                                : 'bg-slate-900 border-slate-800 text-slate-500'
-                            }`} style={{ fontFamily: 'Cairo, sans-serif' }}>
-                              🏆 دمبلة
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Green = took the prize. Amber = line complete but the
-                          prize was already full or switched off. */}
-                      <div className="grid grid-cols-4 gap-1 text-[10px] font-bold text-center">
-                        {([
-                          ['row1', 'السطر 1', winner.row1],
-                          ['row2', 'السطر 2', winner.row2],
-                          ['row3', 'السطر 3', winner.row3],
-                          ['corners', 'الزوايا', winner.corners],
-                        ] as [PrizeKey, string, boolean | undefined][]).map(([key, label, done]) => {
-                          const paid = Boolean(winner.awarded?.[key]);
-                          return (
-                            <div
-                              key={key}
-                              className={`p-1 rounded ${
-                                paid
-                                  ? key === 'corners'
-                                    ? 'bg-sky-500/10 text-sky-400'
-                                    : 'bg-emerald-500/10 text-emerald-400'
-                                  : done
-                                  ? 'bg-amber-500/5 text-amber-500/70'
-                                  : 'bg-slate-900 text-slate-600'
-                              }`}
-                              style={{ fontFamily: 'Cairo, sans-serif' }}
-                            >
-                              {label}: {paid ? 'فائز' : done ? 'متأخر' : '✖'}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+                    <WinnerRow
+                      key={`${winner.key}-${winner.setNo}-${winner.cardNo ?? winner.half ?? 'set'}-${idx}`}
+                      win={winner}
+                      index={localCardIndex()}
+                      drawn={new Set(numbers.map((n) => n.number))}
+                    />
                   ))}
                 </div>
               )}
