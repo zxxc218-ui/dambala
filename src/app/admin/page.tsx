@@ -320,7 +320,7 @@ export default function SetsAdminPage() {
   const activeCard = setDetails?.cards.find(c => c.cardNo === activeCardNo);
 
   return (
-    <ProtectedRoute allowedRoles={['super_admin', 'club']}>
+    <ProtectedRoute allowedRoles={['super_admin']}>
       <Navbar />
       <div className="w-full px-4 py-5 flex flex-col gap-5 select-none pb-24">
         
