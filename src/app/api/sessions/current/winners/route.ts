@@ -66,10 +66,23 @@ export async function GET(req: NextRequest) {
     const index = await cardIndexPromise;
     const standings = computeStandings(index, orderMap(rows), prizeSettings);
 
-    /** cards that actually take each prize, for a quick lookup below */
+    /**
+     * Cards that actually take each prize, for a quick lookup below.
+     *
+     * A prize won by half a set or a whole set has no single card behind it, so
+     * it is left out of this map — this list is per card, and the set-sized
+     * prizes are reported by the play screen, which knows how to name them.
+     */
     const awarded = new Map<PrizeKey, Set<string>>();
     for (const key of PRIZE_ORDER) {
-      awarded.set(key, new Set(standings[key].winners.map((w) => `${w.setNo}:${w.cardNo}`)));
+      awarded.set(
+        key,
+        new Set(
+          standings[key].winners
+            .filter((w) => w.cardNo !== undefined)
+            .map((w) => `${w.setNo}:${w.cardNo}`)
+        )
+      );
     }
 
     const winners: any[] = [];
@@ -81,7 +94,8 @@ export async function GET(req: NextRequest) {
       const id = `${card.setNo}:${card.cardNo}`;
       const takes: Record<string, boolean> = {};
       for (const key of PRIZE_ORDER) {
-        takes[key] = wins[key] && (awarded.get(key)?.has(id) ?? false);
+        const completedHere = key in wins ? wins[key as keyof typeof wins] : false;
+        takes[key] = completedHere && (awarded.get(key)?.has(id) ?? false);
       }
 
       winners.push({
