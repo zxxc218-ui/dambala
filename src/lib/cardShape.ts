@@ -19,10 +19,40 @@ export interface IndexedCard {
   corners: number[];
 }
 
+/**
+ * Half a set: one column of the printed page.
+ *
+ * A set is printed as six cards in two columns of three, and the hall plays the
+ * two columns as separate things — the sheet itself says so, along its head:
+ * الزوايا · السيت · نصف السيت · بطاقة. So a half is a real object in this game
+ * and not a way of slicing one: it has its own four corners, taken from the top
+ * of its top card and the bottom of its bottom card.
+ */
+export type HalfKey = 'left' | 'right';
+
+export interface SetHalf {
+  key: HalfKey;
+  /** the cards of this column, top to bottom */
+  cards: IndexedCard[];
+  /** first and last number of the top row, first and last of the bottom row */
+  corners: number[];
+}
+
+export interface SetGroup {
+  setNo: number;
+  /** all six cards, in card order */
+  cards: IndexedCard[];
+  halves: SetHalf[];
+  /** the four corners of the whole printed page */
+  corners: number[];
+}
+
 export interface CardIndex {
   cards: IndexedCard[];
   /** number (1..90) -> indexes into `cards` of every card holding it */
   byNumber: Map<number, number[]>;
+  /** the same cards grouped as they are printed: sets, and halves of sets */
+  sets: SetGroup[];
   builtAt: number;
 }
 
@@ -63,6 +93,74 @@ export function makeCard(setNo: number, cardNo: number, rows: number[][]): Index
   return { setNo, cardNo, rows: safeRows, all, corners };
 }
 
+/** First and last number of one row, blanks already removed. */
+function ends(card: IndexedCard, rowNo: number): number[] {
+  const row = card.rows[rowNo] ?? [];
+  return row.length > 0 ? [row[0], row[row.length - 1]] : [];
+}
+
+/**
+ * The corners of a block of cards stacked in one column.
+ *
+ * The same idea as a card's corners, one size up: the two ends of the top row
+ * of the card at the top, and the two ends of the bottom row of the card at the
+ * bottom. What is in between does not matter — which is exactly how it looks on
+ * paper, and why a caller can check it at a glance.
+ */
+function stackCorners(column: IndexedCard[]): number[] {
+  if (column.length === 0) return [];
+  return [...ends(column[0], 0), ...ends(column[column.length - 1], 2)];
+}
+
+/**
+ * Group the cards the way the page prints them.
+ *
+ * The sheet lays a set out in two columns of three — cards 1,2,3 on the left
+ * and 4,5,6 on the right — so that is how the halves are cut here, and the
+ * corners of the whole page come from the outer corners of those two columns.
+ */
+function groupSets(sorted: IndexedCard[]): SetGroup[] {
+  const bySet = new Map<number, IndexedCard[]>();
+  for (const card of sorted) {
+    const list = bySet.get(card.setNo);
+    if (list) list.push(card);
+    else bySet.set(card.setNo, [card]);
+  }
+
+  const groups: SetGroup[] = [];
+  for (const [setNo, cards] of bySet) {
+    // a half needs a top and a bottom; a set printed some other way is left
+    // ungrouped rather than guessed at
+    if (cards.length < 2) continue;
+
+    const cut = Math.ceil(cards.length / 2);
+    const left = cards.slice(0, cut);
+    const right = cards.slice(cut);
+    if (right.length === 0) continue;
+
+    const halves: SetHalf[] = [
+      { key: 'left', cards: left, corners: stackCorners(left) },
+      { key: 'right', cards: right, corners: stackCorners(right) },
+    ];
+
+    groups.push({
+      setNo,
+      cards,
+      halves,
+      // the outer four: top of the left column, top of the right, bottom of
+      // the left, bottom of the right — the four corners of the paper
+      corners: [
+        ...ends(left[0], 0).slice(0, 1),
+        ...ends(right[0], 0).slice(1),
+        ...ends(left[left.length - 1], 2).slice(0, 1),
+        ...ends(right[right.length - 1], 2).slice(1),
+      ],
+    });
+  }
+
+  return groups.sort((a, b) => a.setNo - b.setNo);
+}
+
 /** Sort the cards and index them by number, so a draw only scans what it must. */
 export function buildIndex(cards: IndexedCard[]): CardIndex {
   const sorted = [...cards].sort((a, b) =>
@@ -78,7 +176,7 @@ export function buildIndex(cards: IndexedCard[]): CardIndex {
     }
   });
 
-  return { cards: sorted, byNumber, builtAt: Date.now() };
+  return { cards: sorted, byNumber, sets: groupSets(sorted), builtAt: Date.now() };
 }
 
 function isComplete(values: number[], drawn: Set<number>): boolean {

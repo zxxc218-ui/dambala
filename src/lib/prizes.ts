@@ -1,28 +1,65 @@
-import { CardIndex, IndexedCard, WinType, WIN_LABELS } from '@/lib/cardShape';
+import { CardIndex, HalfKey, IndexedCard, WinType, WIN_LABELS } from '@/lib/cardShape';
 
 /**
  * Prize rules for one game.
  *
- * Every prize can be switched off, and each carries a count: how many cards are
- * allowed to win it before it closes.
+ * Every prize can be switched off and carries a count: how many may win it
+ * before it closes.
+ *
+ * A prize is not always won by a card. The sheet a hall plays on says so along
+ * its head — الزوايا · السيت · نصف السيت · بطاقة — because the corners can be
+ * claimed at three sizes: the four corners of one card, of one column of three
+ * (half the set), or of the whole printed page. So a prize here names what can
+ * win it, and one ranking rule covers all three.
  *
  * Nothing about who has won is stored. The standings are worked out from the
  * numbers drawn so far, so undoing a number takes its win back with it.
  */
 
-export type PrizeKey = WinType;
+export type PrizeKey = WinType | 'halfSetCorners' | 'setCorners';
 
 export interface PrizeRule {
   enabled: boolean;
-  /** how many cards may win it before it closes */
+  /** how many may win it before it closes */
   count: number;
 }
 
 export type PrizeSettings = Record<PrizeKey, PrizeRule>;
 
-export const PRIZE_ORDER: PrizeKey[] = ['row1', 'row2', 'row3', 'corners', 'fullCard'];
+export const PRIZE_ORDER: PrizeKey[] = [
+  'row1',
+  'row2',
+  'row3',
+  'corners',
+  'halfSetCorners',
+  'setCorners',
+  'fullCard',
+];
 
-export const PRIZE_LABELS = WIN_LABELS;
+export const PRIZE_LABELS: Record<PrizeKey, string> = {
+  ...WIN_LABELS,
+  corners: 'زوايا البطاقة',
+  halfSetCorners: 'زوايا نصف السيت',
+  setCorners: 'زوايا السيت',
+};
+
+/** What can win a prize: one card, one column of a set, or the whole set. */
+export type PrizeScope = 'card' | 'half' | 'set';
+
+export const PRIZE_SCOPE: Record<PrizeKey, PrizeScope> = {
+  row1: 'card',
+  row2: 'card',
+  row3: 'card',
+  corners: 'card',
+  fullCard: 'card',
+  halfSetCorners: 'half',
+  setCorners: 'set',
+};
+
+export const HALF_LABELS: Record<HalfKey, string> = {
+  left: 'النصف اليسار',
+  right: 'النصف اليمين',
+};
 
 export const MAX_PRIZE_COUNT = 99;
 
@@ -31,6 +68,8 @@ export const DEFAULT_PRIZES: PrizeSettings = {
   row2: { enabled: true, count: 1 },
   row3: { enabled: true, count: 1 },
   corners: { enabled: true, count: 1 },
+  halfSetCorners: { enabled: true, count: 1 },
+  setCorners: { enabled: true, count: 1 },
   fullCard: { enabled: true, count: 1 },
 };
 
@@ -60,7 +99,7 @@ export function normalizePrizes(raw: any): PrizeSettings {
   return out;
 }
 
-/** The numbers that make up one prize on one card. */
+/** The numbers that make up one card-sized prize on one card. */
 export function valuesForPrize(card: IndexedCard, key: PrizeKey): number[] {
   switch (key) {
     case 'row1':
@@ -73,12 +112,55 @@ export function valuesForPrize(card: IndexedCard, key: PrizeKey): number[] {
       return card.corners;
     case 'fullCard':
       return card.all;
+    default:
+      return [];
+  }
+}
+
+/**
+ * Everything that can win a given prize, with the numbers it needs.
+ *
+ * This is the one place the three sizes differ. Past it, a prize is just a list
+ * of contenders and the numbers each of them is waiting on, and the ranking
+ * below neither knows nor cares whether a contender is a card, a column or a
+ * whole page.
+ */
+export interface Entrant {
+  setNo: number;
+  /** set when a single card is what wins */
+  cardNo?: number;
+  /** set when one column of the set is what wins */
+  half?: HalfKey;
+  values: number[];
+}
+
+export function entrantsFor(index: CardIndex, key: PrizeKey): Entrant[] {
+  switch (PRIZE_SCOPE[key]) {
+    case 'card':
+      return index.cards.map((card) => ({
+        setNo: card.setNo,
+        cardNo: card.cardNo,
+        values: valuesForPrize(card, key),
+      }));
+
+    case 'half':
+      return index.sets.flatMap((group) =>
+        group.halves.map((half) => ({
+          setNo: group.setNo,
+          half: half.key,
+          values: half.corners,
+        }))
+      );
+
+    case 'set':
+      return index.sets.map((group) => ({ setNo: group.setNo, values: group.corners }));
   }
 }
 
 export interface PrizeWinner {
   setNo: number;
-  cardNo: number;
+  cardNo?: number;
+  half?: HalfKey;
   /** the draw order of the number that completed it */
   at: number;
 }
@@ -86,11 +168,12 @@ export interface PrizeWinner {
 export interface PrizeStanding {
   key: PrizeKey;
   label: string;
+  scope: PrizeScope;
   enabled: boolean;
   count: number;
-  /** cards that actually take the prize, earliest first */
+  /** those that actually take the prize, earliest first */
   winners: PrizeWinner[];
-  /** cards that completed the line after the prize was already full */
+  /** those that completed it after the prize was already full */
   late: PrizeWinner[];
   /** no places left */
   closed: boolean;
@@ -98,13 +181,20 @@ export interface PrizeStanding {
 
 export type PrizeStandings = Record<PrizeKey, PrizeStanding>;
 
+/** A stable order for contenders that finished on the very same number. */
+function tieBreak(a: PrizeWinner, b: PrizeWinner): number {
+  if (a.setNo !== b.setNo) return a.setNo - b.setNo;
+  if ((a.cardNo ?? 0) !== (b.cardNo ?? 0)) return (a.cardNo ?? 0) - (b.cardNo ?? 0);
+  return (a.half ?? '').localeCompare(b.half ?? '');
+}
+
 /**
  * Work out who holds each prize.
  *
- * A card completes a prize on the highest draw order among that prize's
- * numbers. Cards are ranked by that moment; places are handed out in order
- * until the prize's count runs out. Cards that completed on the very same
- * number share the place — they called it at the same instant, so they all win.
+ * A contender completes a prize on the highest draw order among that prize's
+ * numbers. They are ranked by that moment; places are handed out in order until
+ * the prize's count runs out. Those that completed on the very same number
+ * share the place — they called it at the same instant, so they all win.
  */
 export function computeStandings(
   index: CardIndex,
@@ -115,17 +205,15 @@ export function computeStandings(
 
   for (const key of PRIZE_ORDER) {
     const rule = settings[key];
-
     const completed: PrizeWinner[] = [];
 
     if (rule.enabled) {
-      for (const card of index.cards) {
-        const values = valuesForPrize(card, key);
-        if (values.length === 0) continue;
+      for (const entrant of entrantsFor(index, key)) {
+        if (entrant.values.length === 0) continue;
 
         let at = 0;
         let whole = true;
-        for (const v of values) {
+        for (const v of entrant.values) {
           const order = orderOf.get(v);
           if (order === undefined) {
             whole = false;
@@ -134,12 +222,12 @@ export function computeStandings(
           if (order > at) at = order;
         }
 
-        if (whole) completed.push({ setNo: card.setNo, cardNo: card.cardNo, at });
+        if (whole) {
+          completed.push({ setNo: entrant.setNo, cardNo: entrant.cardNo, half: entrant.half, at });
+        }
       }
 
-      completed.sort((a, b) =>
-        a.at !== b.at ? a.at - b.at : a.setNo !== b.setNo ? a.setNo - b.setNo : a.cardNo - b.cardNo
-      );
+      completed.sort((a, b) => (a.at !== b.at ? a.at - b.at : tieBreak(a, b)));
     }
 
     const winners: PrizeWinner[] = [];
@@ -151,17 +239,16 @@ export function computeStandings(
       let j = i;
       while (j < completed.length && completed[j].at === completed[i].at) j++;
 
-      if (winners.length < rule.count) {
-        winners.push(...completed.slice(i, j));
-      } else {
-        late.push(...completed.slice(i, j));
-      }
+      if (winners.length < rule.count) winners.push(...completed.slice(i, j));
+      else late.push(...completed.slice(i, j));
+
       i = j;
     }
 
     standings[key] = {
       key,
       label: PRIZE_LABELS[key],
+      scope: PRIZE_SCOPE[key],
       enabled: rule.enabled,
       count: rule.count,
       winners,
@@ -171,6 +258,47 @@ export function computeStandings(
   }
 
   return standings;
+}
+
+/** One prize just taken, ready to be announced. */
+export interface FreshWin extends PrizeWinner {
+  key: PrizeKey;
+  label: string;
+  scope: PrizeScope;
+  /** which place it took in that prize (1 = first) */
+  place: number;
+  count: number;
+}
+
+/**
+ * What the ball that just came out won.
+ *
+ * A prize taken by that ball is simply one whose winner completed on its draw
+ * order — there is nothing else to look for, and reading it out of the
+ * standings rather than recomputing it is what keeps the announcement and the
+ * counters from ever disagreeing.
+ */
+export function freshWins(standings: PrizeStandings, justDrawnOrder: number | undefined): FreshWin[] {
+  if (justDrawnOrder === undefined) return [];
+
+  const out: FreshWin[] = [];
+  for (const key of PRIZE_ORDER) {
+    const standing = standings[key];
+    if (!standing.enabled) continue;
+
+    standing.winners.forEach((w, i) => {
+      if (w.at !== justDrawnOrder) return;
+      out.push({
+        ...w,
+        key,
+        label: standing.label,
+        scope: standing.scope,
+        place: i + 1,
+        count: standing.count,
+      });
+    });
+  }
+  return out;
 }
 
 /** The small summary the play screen shows as a live counter row. */
@@ -195,6 +323,57 @@ export function toStatus(standings: PrizeStandings): PrizeStatus[] {
       closed: s.closed,
     };
   });
+}
+
+/**
+ * What to draw to show a win, and which numbers make it up.
+ *
+ * A win is easiest to believe when you can see it, and what "it" is depends on
+ * the size of the prize: one card, one column of three, or the whole printed
+ * page. This returns the cards laid out in the columns they are printed in,
+ * plus the numbers that had to come out — so a single component can draw all
+ * three and a caller can check any of them against the paper in someone's hand.
+ */
+export interface WinPicture {
+  /** cards in printed column order — one column, or the two of a full page */
+  columns: IndexedCard[][];
+  /** the numbers the prize is made of */
+  highlight: number[];
+}
+
+export function winPicture(
+  index: CardIndex,
+  w: { key: PrizeKey; setNo: number; cardNo?: number; half?: HalfKey }
+): WinPicture | null {
+  const scope = PRIZE_SCOPE[w.key];
+
+  if (scope === 'card') {
+    const card = index.cards.find((c) => c.setNo === w.setNo && c.cardNo === w.cardNo);
+    if (!card) return null;
+    return { columns: [[card]], highlight: valuesForPrize(card, w.key) };
+  }
+
+  const group = index.sets.find((g) => g.setNo === w.setNo);
+  if (!group) return null;
+
+  if (scope === 'half') {
+    const half = group.halves.find((h) => h.key === w.half);
+    if (!half) return null;
+    return { columns: [half.cards], highlight: half.corners };
+  }
+
+  return {
+    columns: group.halves.map((h) => h.cards),
+    highlight: group.corners,
+  };
+}
+
+/** How a winner is named: a card, a column of a set, or the set itself. */
+export function winnerName(w: PrizeWinner): string {
+  const set = `سيت ${String(w.setNo).padStart(3, '0')}`;
+  if (w.cardNo !== undefined) return `${set} | بطاقة ${String(w.cardNo).padStart(2, '0')}`;
+  if (w.half) return `${set} — ${HALF_LABELS[w.half]}`;
+  return `${set} — السيت كله`;
 }
 
 /** Draw order of every number drawn so far. */
