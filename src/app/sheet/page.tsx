@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Navbar from '@/components/Navbar';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { ChevronLeft, ChevronRight, Loader2, Printer, ScrollText, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Printer, ScrollText, AlertTriangle, QrCode } from 'lucide-react';
+import Link from 'next/link';
 import { localSet } from '@/lib/localSets';
 
 interface CardRow {
@@ -149,15 +150,38 @@ export default function SheetPage() {
             <ScrollText className="text-emerald-400" size={20} />
             <h1 className="text-sm font-black" style={{ fontFamily: 'Cairo, sans-serif' }}>خريطة السيت</h1>
           </div>
-          <button
-            onClick={() => window.print()}
-            disabled={!setDetails}
-            className="flex items-center gap-1 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 disabled:opacity-40 font-bold text-[10px] py-1.5 px-3 rounded-lg transition-all cursor-pointer"
-            style={{ fontFamily: 'Cairo, sans-serif' }}
-          >
-            <Printer size={12} />
-            <span>طباعة</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {/* The ball stickers belong with the cards, not buried in the
+                settings of a running game — they are printed once, long before
+                anyone is playing. */}
+            <Link
+              href="/labels"
+              className="flex items-center gap-1 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 font-bold text-[10px] py-1.5 px-3 rounded-lg transition-all cursor-pointer"
+              style={{ fontFamily: 'Cairo, sans-serif' }}
+            >
+              <QrCode size={12} />
+              <span>باركود الطوبات</span>
+            </Link>
+
+            <Link
+              href="/print"
+              className="flex items-center gap-1 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 font-bold text-[10px] py-1.5 px-3 rounded-lg transition-all cursor-pointer"
+              style={{ fontFamily: 'Cairo, sans-serif' }}
+            >
+              <Printer size={12} />
+              <span>طباعة السيتات</span>
+            </Link>
+
+            <button
+              onClick={() => window.print()}
+              disabled={!setDetails}
+              className="flex items-center gap-1 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 disabled:opacity-40 font-bold text-[10px] py-1.5 px-3 rounded-lg transition-all cursor-pointer"
+              style={{ fontFamily: 'Cairo, sans-serif' }}
+            >
+              <Printer size={12} />
+              <span>هذا السيت</span>
+            </button>
+          </div>
         </div>
 
         {/* Set selector */}
