@@ -5,8 +5,18 @@ import Navbar from '@/components/Navbar';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import CardGrid from '@/components/CardGrid';
 import { Calendar, Loader2, Award, Hash, ChevronDown, History, CloudOff } from 'lucide-react';
-import { computeStandings, orderMap, PRIZE_ORDER, PrizeKey, PRIZE_LABELS, PrizeSettings } from '@/lib/prizes';
-import { WIN_LABELS } from '@/lib/cardShape';
+import {
+  HALF_LABELS,
+  PRIZE_LABELS,
+  PRIZE_ORDER,
+  PRIZE_SCOPE,
+  PrizeKey,
+  PrizeSettings,
+  computeStandings,
+  orderMap,
+  winPicture,
+} from '@/lib/prizes';
+import { CardIndex, HalfKey } from '@/lib/cardShape';
 import { ensureLocalCards, localCardIndex } from '@/lib/localCards';
 
 /**
@@ -46,7 +56,10 @@ interface WinnerRow {
   place: number;
   count: number;
   setNo: number;
-  cardNo: number;
+  /** set only when a single card won */
+  cardNo?: number;
+  /** set only when one column of a set won */
+  half?: HalfKey;
   at: number;
 }
 
@@ -131,6 +144,7 @@ export default function SessionsPage() {
           count: standings[key].count,
           setNo: w.setNo,
           cardNo: w.cardNo,
+          half: w.half,
           at: w.at,
         });
       });
@@ -138,10 +152,7 @@ export default function SessionsPage() {
     return rows;
   };
 
-  const cardOf = (setNo: number, cardNo: number) => {
-    const index = localCardIndex();
-    return index?.cards.find((c) => c.setNo === setNo && c.cardNo === cardNo) ?? null;
-  };
+  const cardsIndex = (): CardIndex | null => localCardIndex();
 
   return (
     <ProtectedRoute allowedRoles={['super_admin', 'club']}>
@@ -265,7 +276,7 @@ export default function SessionsPage() {
                         <SessionBody
                           detail={detail}
                           winners={winnersOf(detail)}
-                          cardOf={cardOf}
+                          index={cardsIndex()}
                         />
                       )}
                     </div>
@@ -285,11 +296,11 @@ export default function SessionsPage() {
 function SessionBody({
   detail,
   winners,
-  cardOf,
+  index,
 }: {
   detail: SessionDetail;
   winners: WinnerRow[] | null;
-  cardOf: (setNo: number, cardNo: number) => any;
+  index: CardIndex | null;
 }) {
   const drawn = new Set(detail.numbers.map((n) => n.number));
 
@@ -363,15 +374,23 @@ function SessionBody({
         ) : (
           <div className="flex flex-col gap-2">
             {winners.map((w, i) => {
-              const card = cardOf(w.setNo, w.cardNo);
+              const picture = index ? winPicture(index, w) : null;
+              const wide = (picture?.columns.length ?? 1) > 1;
               return (
                 <div
                   key={`${w.key}-${i}`}
-                  className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 flex items-center gap-3"
+                  className={`bg-slate-950 border border-slate-800 rounded-xl p-2.5 flex gap-3 ${
+                    wide ? 'flex-col sm:flex-row sm:items-center' : 'items-center'
+                  }`}
                 >
-                  {card && (
-                    <div className="w-[150px] flex-shrink-0">
-                      <CardGrid card={card} drawn={drawn} won={w.key} size="sm" />
+                  {picture && (
+                    <div className={`min-w-0 ${wide ? 'w-full sm:flex-1' : 'w-[160px] flex-shrink-0'}`}>
+                      <CardGrid
+                        columns={picture.columns}
+                        drawn={drawn}
+                        highlight={picture.highlight}
+                        size="sm"
+                      />
                     </div>
                   )}
 
@@ -380,14 +399,24 @@ function SessionBody({
                       className="text-[11px] font-black text-slate-200"
                       style={{ fontFamily: 'Cairo, sans-serif' }}
                     >
-                      سيت {String(w.setNo).padStart(3, '0')} | بطاقة{' '}
-                      {String(w.cardNo).padStart(2, '0')}
+                      سيت {String(w.setNo).padStart(3, '0')}
+                      {w.cardNo !== undefined
+                        ? ` | بطاقة ${String(w.cardNo).padStart(2, '0')}`
+                        : w.half
+                        ? ` — ${HALF_LABELS[w.half]}`
+                        : ' — السيت كله'}
                     </p>
                     <p
-                      className="text-[10px] font-black text-emerald-400 mt-0.5"
+                      className={`text-[10px] font-black mt-0.5 ${
+                        PRIZE_SCOPE[w.key] === 'set'
+                          ? 'text-amber-400'
+                          : PRIZE_SCOPE[w.key] === 'half'
+                          ? 'text-sky-400'
+                          : 'text-emerald-400'
+                      }`}
                       style={{ fontFamily: 'Cairo, sans-serif' }}
                     >
-                      {WIN_LABELS[w.key]}
+                      {PRIZE_LABELS[w.key]}
                     </p>
                     <p
                       className="text-[9px] text-slate-500 font-bold mt-0.5"
