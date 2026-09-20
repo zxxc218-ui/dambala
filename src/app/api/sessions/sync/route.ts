@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { getUserSession, UserProfile } from '@/lib/auth';
 import { clearSessionCache } from '@/lib/sessions';
-import { isMissingPrizesColumn, normalizePrizes } from '@/lib/prizes';
+import { isMissingPrizesColumn, normalizePrizes, packRules, readSets } from '@/lib/prizes';
 
 /**
  * Upload a whole game in one request.
@@ -54,7 +54,8 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json().catch(() => ({}));
     const { numbers, rejected } = cleanNumbers(body?.numbers);
-    const prizes = normalizePrizes(body?.prizes);
+    // the rules, with the sets that were in play folded in beside them
+    const prizes = packRules(normalizePrizes(body?.prizes), readSets(body?.sets));
     const status: string = ['active', 'paused', 'finished'].includes(body?.status)
       ? body.status
       : 'finished';
