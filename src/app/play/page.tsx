@@ -39,7 +39,7 @@ import {
   winPicture,
   winnerName,
 } from '@/lib/prizes';
-import { CardIndex, HalfKey } from '@/lib/cardShape';
+import { CardIndex, HalfKey, restrictToSets } from '@/lib/cardShape';
 import { ensureLocalCards, localCardIndex } from '@/lib/localCards';
 import {
   DrawnNumber,
@@ -63,6 +63,7 @@ import {
 import Drawer from '@/components/Drawer';
 import Link from 'next/link';
 import PrizeSettingsPanel from '@/components/PrizeSettings';
+import SetPicker from '@/components/SetPicker';
 import {
   DEFAULT_PRIZES,
   PRIZE_ORDER,
@@ -319,6 +320,8 @@ export default function PlayPage() {
   const [syncNote, setSyncNote] = useState('');
   /** the cards are on this device, so winners can be named without a connection */
   const [cardsReady, setCardsReady] = useState(false);
+  /** the sets going into the next game — null means the whole booklet */
+  const [draftSets, setDraftSets] = useState<number[] | null>(null);
   /** a session the server still thinks is running, waiting to be claimed or closed */
   const [pendingAdopt, setPendingAdopt] = useState<{
     id: number | string;
@@ -439,13 +442,35 @@ export default function PlayPage() {
    * won — they are the same calculation, and doing it twice per ball would be
    * two passes over nine hundred cards for one answer.
    */
-  const board = useMemo(() => {
+  /**
+   * The cards this game is actually played on.
+   *
+   * The device holds the whole booklet, but a game is played on the sets that
+   * were sold for it. Narrowing once, here, is what keeps every other part of
+   * the screen honest: the counters, the announcement and the winners list all
+   * read this, so none of them can name a card that was never in the room.
+   *
+   * `game.sets` null — the normal case — hands back the booklet untouched.
+   */
+  const playIndex = useMemo(() => {
     const index = cardsReady ? localCardIndex() : null;
-    if (!index || !game) return null;
-    return readBoard(index, game.numbers, game.prizes);
-  }, [game, cardsReady]);
+    if (!index) return null;
+    return restrictToSets(index, game?.sets ?? null);
+  }, [cardsReady, game?.sets]);
+
+  const board = useMemo(() => {
+    if (!playIndex || !game) return null;
+    return readBoard(playIndex, game.numbers, game.prizes);
+  }, [game, playIndex]);
 
   const prizeStatus = board?.status ?? null;
+
+  /** every set on this device, for the start screen to choose from */
+  const allSets = useMemo(() => {
+    const index = cardsReady ? localCardIndex() : null;
+    if (!index) return [];
+    return index.sets.map((g) => g.setNo);
+  }, [cardsReady]);
 
   /**
    * Every card that has taken a prize so far, newest first.
@@ -479,14 +504,13 @@ export default function PlayPage() {
 
   const announce = useCallback(
     (board: DrawnNumber[], justDrawn: number) => {
-      const index = localCardIndex();
-      if (!index || !game) return;
-      const { fresh } = readBoard(index, board, game.prizes, justDrawn);
+      if (!playIndex || !game) return;
+      const { fresh } = readBoard(playIndex, board, game.prizes, justDrawn);
       if (fresh.length === 0) return;
       // added, not replaced: a fast run of numbers must not lose an alert
       setActiveNewWinners((prev) => [...prev, ...fresh].slice(-20));
     },
-    [game]
+    [game, playIndex]
   );
 
   /**
@@ -561,7 +585,9 @@ export default function PlayPage() {
 
   /** Starting a game is instant and local — it does not need the server at all. */
   const confirmStart = () => {
-    startGame(newSessionName, draftPrizes);
+    // nothing ticked is the same as no restriction — better than a game that
+    // can never pay anything
+    startGame(newSessionName, draftPrizes, draftSets && draftSets.length > 0 ? draftSets : null);
     setStartPrizes(draftPrizes);
     setNewSessionName('');
     setAllWinners(null);
@@ -844,6 +870,21 @@ export default function PlayPage() {
                 />
               </div>
 
+              {/* which booklets went out tonight — only these can win */}
+              {allSets.length > 0 && (
+                <div>
+                  <label
+                    className="block text-slate-300 font-bold text-xs mb-2"
+                    style={{ fontFamily: 'Cairo, sans-serif' }}
+                  >
+                    السيتات الداخلة باللعب
+                  </label>
+                  <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3">
+                    <SetPicker allSets={allSets} value={draftSets} onChange={setDraftSets} />
+                  </div>
+                </div>
+              )}
+
               <button
                 type="submit"
                 className="w-full bg-emerald-500 hover:bg-emerald-600 text-ink-fixed font-black py-3 px-6 rounded-xl text-sm transition-all active:scale-[0.98] flex justify-center items-center gap-2 shadow-lg shadow-emerald-500/10 cursor-pointer"
@@ -960,6 +1001,18 @@ export default function PlayPage() {
                 >
                   {game.status === 'active' ? 'نشط' : 'متوقف'}
                 </span>
+
+                {/* a game on part of the booklet says so, all game long —
+                    otherwise a caller cannot tell why a set never wins */}
+                {game.sets && game.sets.length > 0 && (
+                  <span
+                    className="px-2 py-0.5 rounded-full font-bold text-[9px] flex-shrink-0 bg-sky-500/10 text-sky-400 border border-sky-500/20"
+                    style={{ fontFamily: 'Cairo, sans-serif' }}
+                    title={game.sets.map((n) => String(n).padStart(3, '0')).join('، ')}
+                  >
+                    {game.sets.length} سيت باللعب
+                  </span>
+                )}
               </div>
             </div>
             )}
@@ -1067,7 +1120,7 @@ export default function PlayPage() {
               <WinnersBoard
                 rows={wonCards}
                 drawn={new Set(numbers.map((n) => n.number))}
-                index={cardsReady ? localCardIndex() : null}
+                index={playIndex}
                 ready={cardsReady}
               />
             </div>
@@ -1318,7 +1371,7 @@ export default function PlayPage() {
                   <WinnerRow
                     key={idx}
                     win={winner}
-                    index={localCardIndex()}
+                    index={playIndex}
                     drawn={new Set(numbers.map((n) => n.number))}
                   />
                 ))}
@@ -1384,7 +1437,7 @@ export default function PlayPage() {
                     <WinnerRow
                       key={`${winner.key}-${winner.setNo}-${winner.cardNo ?? winner.half ?? 'set'}-${idx}`}
                       win={winner}
-                      index={localCardIndex()}
+                      index={playIndex}
                       drawn={new Set(numbers.map((n) => n.number))}
                     />
                   ))}
