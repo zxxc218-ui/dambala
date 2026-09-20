@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { getUserSession, UserProfile } from '@/lib/auth';
-import { isMissingPrizesColumn, normalizePrizes } from '@/lib/prizes';
+import { isMissingPrizesColumn, normalizePrizes, readSets } from '@/lib/prizes';
 
 /**
  * One past game, exactly as it was played.
@@ -71,6 +71,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         endedAt: data.ended_at,
         numbers,
         prizes: normalizePrizes(data.prizes),
+        sets: readSets(data.prizes),
       },
     });
   } catch (error: any) {
