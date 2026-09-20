@@ -398,3 +398,34 @@ export function isMissingPrizesColumn(error: any): boolean {
     (/prizes/i.test(message) && /(column|schema cache)/i.test(message))
   );
 }
+
+/* --------------------------------------------------------------------------
+   Which sets a game was played on, carried with its rules.
+
+   A game played on part of the booklet has to be reopened on that same part,
+   or its winners change when someone views it later. That belongs in the
+   database next to the rules — but rather than a second column the owner has
+   to go and add, it rides inside the `prizes` blob: `sets` is not a prize key,
+   so it cannot collide with one, and normalizePrizes builds its result from
+   PRIZE_ORDER alone and quietly drops it.
+   -------------------------------------------------------------------------- */
+
+/** The rules plus the sets, as one value to store. */
+export function packRules(prizes: PrizeSettings, sets: number[] | null | undefined) {
+  const clean = readSets(sets);
+  return clean ? { ...prizes, sets: clean } : { ...prizes };
+}
+
+/** The sets out of a stored blob, or null for the whole booklet. */
+export function readSets(raw: any): number[] | null {
+  const list = Array.isArray(raw) ? raw : Array.isArray(raw?.sets) ? raw.sets : null;
+  if (!list) return null;
+
+  const out = new Set<number>();
+  for (const entry of list) {
+    const n = Number(entry);
+    if (Number.isInteger(n) && n > 0) out.add(n);
+  }
+
+  return out.size === 0 ? null : [...out].sort((a, b) => a - b);
+}

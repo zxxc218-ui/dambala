@@ -216,3 +216,33 @@ export function winsCompletedBy(
   if (completes(card.all)) out.push('fullCard');
   return out;
 }
+
+/**
+ * The same index, narrowed to the sets that are actually in play.
+ *
+ * A hall does not always sell every booklet it has printed. When only some sets
+ * were sold, the ones that were not are not in the room — nobody is holding
+ * them, so nobody can claim on them, and a game that keeps ranking them will
+ * sooner or later announce a winner who does not exist.
+ *
+ * Narrowing here rather than at each prize is deliberate: past this point the
+ * rest of the game has no idea some sets were left out, because as far as it
+ * can see those cards were never printed. One filter, and every prize — a card,
+ * half a set, a whole set — is right for free.
+ *
+ * `sets` empty or null means the whole booklet is in play, which is the normal
+ * case and costs nothing.
+ */
+export function restrictToSets(index: CardIndex, sets: number[] | null | undefined): CardIndex {
+  if (!sets || sets.length === 0) return index;
+
+  const wanted = new Set(sets);
+  const kept = index.cards.filter((card) => wanted.has(card.setNo));
+
+  // asking for sets that are not in this copy of the booklet would otherwise
+  // leave an empty game that silently never pays anything
+  if (kept.length === 0) return index;
+  if (kept.length === index.cards.length) return index;
+
+  return buildIndex(kept);
+}

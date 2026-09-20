@@ -47,6 +47,14 @@ export interface LocalGame {
   name: string;
   status: GameStatus;
   prizes: PrizeSettings;
+  /**
+   * The sets that were sold for this game, or null for the whole booklet.
+   *
+   * Kept with the game rather than alongside it because it is part of what the
+   * game *was*: reopening a finished session has to rank exactly the sets that
+   * were in the room that night, not whatever is selected now.
+   */
+  sets: number[] | null;
   numbers: DrawnNumber[];
   startedAt: number;
   endedAt: number | null;
@@ -77,6 +85,26 @@ function persist() {
   }
 }
 
+/**
+ * The chosen sets, made safe: whole numbers, no repeats, in order.
+ *
+ * Anything that is not a usable list — missing, empty, junk — comes back as
+ * null, which everywhere downstream means "the whole booklet". A game saved
+ * before this feature existed has no such field, and that is exactly the right
+ * answer for it.
+ */
+export function normalizeSets(raw: any): number[] | null {
+  if (!Array.isArray(raw)) return null;
+
+  const out = new Set<number>();
+  for (const entry of raw) {
+    const n = Number(entry);
+    if (Number.isInteger(n) && n > 0) out.add(n);
+  }
+
+  return out.size === 0 ? null : [...out].sort((a, b) => a - b);
+}
+
 /** Anything read back off a device is suspect — a half-written game is worse than none. */
 function sanitize(raw: any): LocalGame | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -100,6 +128,7 @@ function sanitize(raw: any): LocalGame | null {
     name: String(raw.name || 'جلسة سحب'),
     status,
     prizes: normalizePrizes(raw.prizes),
+    sets: normalizeSets(raw.sets),
     numbers,
     startedAt: Number(raw.startedAt) || Date.now(),
     endedAt: Number.isFinite(raw.endedAt) ? Number(raw.endedAt) : null,
@@ -179,6 +208,7 @@ export function syncPayload(game: LocalGame) {
     localId: game.localId,
     name: game.name,
     prizes: game.prizes,
+    sets: game.sets,
     status: game.status,
     numbers: game.numbers.map((n) => n.number),
     startedAt: new Date(game.startedAt).toISOString(),
@@ -198,13 +228,18 @@ export function needsSync(game: LocalGame | null): boolean {
 /* playing                                                               */
 /* --------------------------------------------------------------------- */
 
-export function startGame(name: string, prizes: PrizeSettings): LocalGame {
+export function startGame(
+  name: string,
+  prizes: PrizeSettings,
+  sets?: number[] | null
+): LocalGame {
   const game: LocalGame = {
     localId: newLocalId(),
     serverId: null,
     name: name.trim() || `جلسة سحب دمبلة - ${new Date().toLocaleString('ar-EG')}`,
     status: 'active',
     prizes: normalizePrizes(prizes),
+    sets: normalizeSets(sets),
     numbers: [],
     startedAt: Date.now(),
     endedAt: null,
@@ -331,6 +366,7 @@ export function adoptServerSession(session: {
   status: string;
   numbers: { number: number; drawOrder: number }[];
   prizes?: PrizeSettings;
+  sets?: number[] | null;
   startedAt?: string;
 }): LocalGame {
   const numbers = [...(session.numbers || [])]
@@ -344,6 +380,7 @@ export function adoptServerSession(session: {
     name: session.name,
     status: session.status === 'paused' ? 'paused' : 'active',
     prizes: normalizePrizes(session.prizes ?? DEFAULT_PRIZES),
+    sets: normalizeSets(session.sets),
     numbers,
     startedAt: session.startedAt ? new Date(session.startedAt).getTime() : Date.now(),
     endedAt: null,
