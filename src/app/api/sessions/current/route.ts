@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { getUserSession, UserProfile } from '@/lib/auth';
 import { getCardIndex } from '@/lib/cards';
+import { restrictToSets } from '@/lib/cardShape';
 import {
   DEFAULT_PRIZES,
   computeStandings,
   isMissingPrizesColumn,
   normalizePrizes,
   orderMap,
+  readSets,
   toStatus,
 } from '@/lib/prizes';
 
@@ -104,6 +106,9 @@ export async function GET(req: NextRequest) {
     numbers.sort((a: any, b: any) => a.drawOrder - b.drawOrder);
 
     const prizes = normalizePrizes(dbSession.prizes);
+    // the sets that night was played on, so a device taking it over judges the
+    // same cards the room was holding
+    const sets = readSets(dbSession.prizes);
 
     // Live prize counters, worked out from the numbers on the board. Nothing is
     // stored, so an undone number gives its prize back by itself.
@@ -111,7 +116,7 @@ export async function GET(req: NextRequest) {
     try {
       const index = await getCardIndex();
       const standings = computeStandings(
-        index,
+        restrictToSets(index, sets),
         orderMap((dbSession.draw_numbers || []) as any),
         prizes
       );
@@ -128,6 +133,7 @@ export async function GET(req: NextRequest) {
       endedAt: dbSession.ended_at,
       numbers,
       prizes,
+      sets,
     };
 
     return NextResponse.json({
