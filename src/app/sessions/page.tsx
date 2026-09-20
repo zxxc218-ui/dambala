@@ -16,7 +16,7 @@ import {
   orderMap,
   winPicture,
 } from '@/lib/prizes';
-import { CardIndex, HalfKey } from '@/lib/cardShape';
+import { CardIndex, HalfKey, restrictToSets } from '@/lib/cardShape';
 import { ensureLocalCards, localCardIndex } from '@/lib/localCards';
 
 /**
@@ -49,6 +49,8 @@ interface SessionDetail {
   endedAt: string | null;
   numbers: { number: number; drawOrder: number }[];
   prizes: PrizeSettings;
+  /** the sets that were in play that night, or null for the whole booklet */
+  sets?: number[] | null;
 }
 
 interface WinnerRow {
@@ -124,9 +126,20 @@ export default function SessionsPage() {
     }
   };
 
+  /**
+   * The cards this session was played on.
+   *
+   * A night played on part of the booklet has to be reopened on that same part,
+   * or the winners shown here are not the winners that were called in the room.
+   */
+  const indexOf = (s: SessionDetail): CardIndex | null => {
+    const index = localCardIndex();
+    return index ? restrictToSets(index, s.sets ?? null) : null;
+  };
+
   /** The cards that took a prize in THIS session, and nothing else. */
   const winnersOf = (s: SessionDetail): WinnerRow[] | null => {
-    const index = localCardIndex();
+    const index = indexOf(s);
     if (!index) return null;
 
     const standings = computeStandings(
@@ -151,8 +164,6 @@ export default function SessionsPage() {
     }
     return rows;
   };
-
-  const cardsIndex = (): CardIndex | null => localCardIndex();
 
   return (
     <ProtectedRoute allowedRoles={['super_admin', 'club']}>
@@ -276,7 +287,7 @@ export default function SessionsPage() {
                         <SessionBody
                           detail={detail}
                           winners={winnersOf(detail)}
-                          index={cardsIndex()}
+                          index={indexOf(detail)}
                         />
                       )}
                     </div>
@@ -444,6 +455,17 @@ function SessionBody({
             {PRIZE_LABELS[k]} × {detail.prizes[k].count}
           </span>
         ))}
+
+        {/* a night played on part of the booklet says which part */}
+        {detail.sets && detail.sets.length > 0 && (
+          <span
+            className="px-2 py-1 rounded-lg bg-sky-500/10 border border-sky-500/20 text-[9px] font-black text-sky-400"
+            style={{ fontFamily: 'Cairo, sans-serif' }}
+            title={detail.sets.map((n) => String(n).padStart(3, '0')).join('، ')}
+          >
+            {detail.sets.length} سيت باللعب
+          </span>
+        )}
       </div>
     </>
   );
